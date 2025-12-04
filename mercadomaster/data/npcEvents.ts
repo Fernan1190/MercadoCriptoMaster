@@ -1,4 +1,4 @@
-import { NpcEvent } from '../types';
+import { NpcEvent } from '../../types';
 
 export const NPC_EVENTS: NpcEvent[] = [
     {

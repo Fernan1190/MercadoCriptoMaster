@@ -1,4 +1,4 @@
-import { CandleData } from '../types';
+import { CandleData } from '../../types';
 
 export const INITIAL_PRICES = {
   BTC: 65000,
@@ -48,7 +48,7 @@ export const generateNextCandle = (
   const timeString = now.toLocaleTimeString('en-US', { hour12: false });
 
   return {
-    time: timeString,
+    timestamp: number;
     open: prevClose,
     high,
     low,
@@ -68,7 +68,7 @@ export const generateHistory = (basePrice: number, count: number): CandleData[] 
     
     const d = new Date();
     d.setMinutes(d.getMinutes() - (count - i));
-    candle.time = d.toLocaleTimeString('en-US', { hour12: false });
+    c.timestamp = d.toLocaleTimeString('en-US', { hour12: false });
     
     data.push(candle);
   }

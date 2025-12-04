@@ -1,4 +1,4 @@
-import { SkillNode } from '../types';
+import { SkillNode } from '../../types';
 
 export const SKILL_TREE: SkillNode[] = [
     // RAMA TRADER (Izquierda)

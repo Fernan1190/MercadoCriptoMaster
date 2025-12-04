@@ -1,4 +1,4 @@
-import { MarketNode } from '../types';
+import { MarketNode } from '../../types';
 
 export const MARKET_NODES: MarketNode[] = [
   { 

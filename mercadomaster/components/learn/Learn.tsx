@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useGame } from '../context/GameContext'; 
+import { useGame } from '../../context/GameContext'; 
 import { XCircle, Timer, Heart, BrainCircuit, History, Share2, PenTool } from 'lucide-react';
-import { PathId, LessonContent, Unit, LearningPath, GameMode } from '../types';
-import { getLesson, generateBrainGymLesson, generateHistoricalLesson } from '../services/contentService';
-import { simplifyText } from '../services/geminiService';
-import { LessonMap } from './learn/LessonMap';
-import { LessonTheory } from './learn/LessonTheory';
-import { LessonOverlays } from './learn/LessonOverlays';
+import { PathId, LessonContent, Unit, LearningPath, GameMode } from '../../../types';
+import { getLesson, generateBrainGymLesson, generateHistoricalLesson } from '../../services/contentService';
+import { simplifyText } from '../../services/geminiService';
+import { LessonMap } from './LessonMap';
+import { LessonTheory } from './LessonTheory';
+import { LessonOverlays } from './LessonOverlays';
 
 const PATHS: Record<PathId, LearningPath> = {
   [PathId.STOCKS]: {

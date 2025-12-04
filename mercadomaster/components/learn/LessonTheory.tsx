@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LessonContent } from '../../types';
+import { LessonContent } from '../../../types';
 import { Volume1, BookMarked, Wand2, BrainCircuit, ChevronUp, ChevronDown, AlertTriangle, Lightbulb, ArrowRight, Gem, Bot, Edit3, Save } from 'lucide-react';
 import { EducationalChart } from './EducationalChart';
 import { GLOSSARY } from '../../data/glossary';

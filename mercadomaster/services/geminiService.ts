@@ -1,6 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { ChatMessage, AIPersona } from "../types";
+import { ChatMessage, AIPersona } from "../../types";
 
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });

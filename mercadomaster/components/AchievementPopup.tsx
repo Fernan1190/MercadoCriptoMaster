@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Trophy, X } from 'lucide-react';
-import { Achievement } from '../types';
+import { Achievement } from '../../types';
 
 interface AchievementPopupProps {
   achievement: Achievement | null;

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useGame } from '../context/GameContext';
 import { Trophy, Medal, Shield, Crown, TrendingUp, User } from 'lucide-react';
-import { LeaderboardEntry } from '../types';
+import { LeaderboardEntry } from '../../types';
 
 export const Leaderboard: React.FC = () => {
   const { stats } = useGame();

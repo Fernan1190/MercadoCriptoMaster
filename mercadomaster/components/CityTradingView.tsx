@@ -1,5 +1,5 @@
 import React from 'react';
-import { MarketNode } from '../types';
+import { MarketNode } from '../../types';
 import { TradingTerminal } from './TradingTerminal';
 import { ArrowLeft, MapPin, Building2, Globe, TrendingUp, Radio } from 'lucide-react';
 

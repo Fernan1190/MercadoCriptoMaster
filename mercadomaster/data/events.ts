@@ -1,4 +1,4 @@
-import { MarketEvent } from '../types';
+import { MarketEvent } from '../../types';
 
 export const MARKET_EVENTS: MarketEvent[] = [
   {

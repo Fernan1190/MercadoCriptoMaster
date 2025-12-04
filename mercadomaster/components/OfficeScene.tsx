@@ -3,7 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, Html, SoftShadows, useCursor, Environment, Float, ContactShadows, Stars, Cloud, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 import { useGame } from '../context/GameContext';
-import { MiningStats, InstalledRack, InstalledMiner } from '../types';
+import { MiningStats, InstalledRack, InstalledMiner } from '../../types';
 import { MINERS } from '../data/items';
 
 export interface OfficeVisualProps {

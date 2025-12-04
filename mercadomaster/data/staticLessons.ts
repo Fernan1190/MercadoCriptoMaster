@@ -1,4 +1,4 @@
-import { LessonContent } from '../types';
+import { LessonContent } from '../../types';
 
 // Database of static, handcrafted lessons to ensure high quality
 export const STATIC_LESSONS: Record<string, LessonContent> = {

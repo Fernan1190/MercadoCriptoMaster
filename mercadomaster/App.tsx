@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
-import { Learn } from './components/Learn';
+import { Learn } from './components/learn/Learn';
 import { Dashboard } from './components/Dashboard';
 import { Shop } from './components/Shop'; 
 import { Leaderboard } from './components/Leaderboard';

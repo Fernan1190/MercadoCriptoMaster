@@ -3,7 +3,7 @@ import { useGame } from '../context/GameContext';
 import { Globe, Lock, Unlock, TrendingUp, AlertTriangle, Loader, Zap, Shield, X, Clock, Radio } from 'lucide-react';
 import { WarRoomScene } from './WarRoomScene';
 import { MARKET_NODES } from '../data/markets';
-import { MarketNode } from '../types';
+import { MarketNode } from '../../types';
 
 interface WarRoomProps {
   onEnterMarket?: (market: MarketNode) => void;

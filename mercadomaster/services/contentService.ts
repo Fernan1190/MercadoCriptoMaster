@@ -1,4 +1,4 @@
-import { LessonContent, QuizQuestion, CandleData } from "../types";
+import { LessonContent, QuizQuestion, CandleData } from "../../types";
 import { STATIC_LESSONS } from "../data/staticLessons";
 import { QUESTION_BANK } from "../data/questionBank";
 
@@ -103,7 +103,7 @@ export const generateHistoricalLesson = (era: '2008_crash' | '2020_covid' | '201
       const change = 1 + (Math.random() * volatility * 2 - volatility) + (trend * 0.005);
       price *= change;
       history.push({
-          time: `Day ${i}`,
+          timestamp: number;
           open: price,
           high: price * 1.02,
           low: price * 0.98,

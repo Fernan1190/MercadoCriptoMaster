@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef } from 'react';
-import { UserStats, PathId, Unit, LearningPath, GameMode } from '../../types';
+import { UserStats, PathId, Unit, LearningPath, GameMode } from '../../../types';
 import { ArrowLeft, ArrowRight, Star, Lock, CheckCircle, Gift, Skull, MapPin, Heart, Coins, Target, Award, Zap, Timer, PackageOpen, MousePointerClick, Sparkles } from 'lucide-react';
 
 interface LessonMapProps {
