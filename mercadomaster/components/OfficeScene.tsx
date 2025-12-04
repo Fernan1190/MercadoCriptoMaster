@@ -1,13 +1,15 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrthographicCamera, Html, SoftShadows, useCursor, Environment, Float, ContactShadows, Stars, Cloud, Sparkles, CameraControls } from '@react-three/drei';
+import { OrthographicCamera, Html, SoftShadows, useCursor, Environment, Float, ContactShadows, Stars, Cloud, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
+import { useGame } from '../context/GameContext';
 
-// --- INTERFAZ ---
 export interface OfficeVisualProps {
   level: number;
   items: string[];
   league: string;
+  skin: { floor: string, wall: string };
+  achievements: string[];
 }
 
 // --- UTILIDADES ---
@@ -15,7 +17,7 @@ const ScreenMaterial = ({ color, intensity = 1 }: { color: string, intensity?: n
     <meshStandardMaterial 
         color={color} 
         emissive={color} 
-        emissiveIntensity={intensity * 3} // Más brillo para compensar falta de Bloom
+        emissiveIntensity={intensity * 3} 
         toneMapped={false} 
     />
 );
@@ -24,45 +26,23 @@ function adjustColor(color: string, amount: number) {
     return '#' + color.replace(/^#/, '').replace(/../g, color => ('0' + Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
 }
 
-// --- SISTEMA DE CÁMARA CINEMATOGRÁFICA ---
 const CinematicCamera = () => {
     const cameraRef = useRef<THREE.OrthographicCamera>(null);
-    
     useFrame((state) => {
         if (!cameraRef.current) return;
-        
-        // Efecto Paralaje: La cámara sigue sutilmente al ratón
-        const x = state.pointer.x * 2; // Movimiento horizontal
-        const y = state.pointer.y * 2; // Movimiento vertical
-        
-        // Interpolación suave (Lerp)
+        const x = state.pointer.x * 2; 
+        const y = state.pointer.y * 2; 
         cameraRef.current.position.x = THREE.MathUtils.lerp(cameraRef.current.position.x, 20 + x, 0.05);
-        cameraRef.current.position.z = THREE.MathUtils.lerp(cameraRef.current.position.z, 20 + x, 0.05); // Isométrico: X y Z se mueven igual
+        cameraRef.current.position.z = THREE.MathUtils.lerp(cameraRef.current.position.z, 20 + x, 0.05); 
         cameraRef.current.position.y = THREE.MathUtils.lerp(cameraRef.current.position.y, 20 + y, 0.05);
-        
-        cameraRef.current.lookAt(0, 2, 0); // Mantener el foco en el escritorio
+        cameraRef.current.lookAt(0, 2, 0); 
     });
-
-    return (
-        <OrthographicCamera 
-            ref={cameraRef}
-            makeDefault 
-            position={[100, 100, 100]} // Empieza lejos (Zoom in intro)
-            zoom={35} 
-            near={-100} 
-            far={500}
-            onUpdate={c => c.lookAt(0, 2, 0)} 
-        />
-    );
+    return <OrthographicCamera ref={cameraRef} makeDefault position={[100, 100, 100]} zoom={35} near={-100} far={500} onUpdate={c => c.lookAt(0, 2, 0)} />;
 };
 
-// --- SISTEMA DE CLIMA ---
 const WeatherSystem = ({ isNight }: { isNight: boolean }) => {
-    // Simulamos clima aleatorio o basado en props (aquí aleatorio para demo visual)
     const [weather, setWeather] = useState<'clear' | 'rain' | 'snow'>('clear');
-
     useEffect(() => {
-        // Cambiar clima cada 30 segundos aleatoriamente
         const interval = setInterval(() => {
             const r = Math.random();
             if (r > 0.7) setWeather('rain');
@@ -74,58 +54,28 @@ const WeatherSystem = ({ isNight }: { isNight: boolean }) => {
 
     return (
         <group>
-            {/* Estrellas (Solo de noche) */}
             {isNight && <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />}
-            
-            {/* Nubes (Ambiente) - CORREGIDO: Usamos bounds en lugar de width/depth */}
             <Cloud opacity={0.5} speed={0.4} bounds={[10, 2, 10]} segments={20} position={[-10, 15, -10]} color={isNight ? "#1e293b" : "white"} />
             <Cloud opacity={0.3} speed={0.2} bounds={[10, 2, 10]} segments={20} position={[15, 12, -15]} color={isNight ? "#0f172a" : "white"} />
-
-            {/* Lluvia */}
-            {weather === 'rain' && (
-                <group>
-                     {/* Usamos Sparkles para simular gotas rápidas */}
-                    <Sparkles count={500} scale={[20, 20, 20]} size={4} speed={2} opacity={0.5} color="#60a5fa" position={[0, 10, 0]} />
-                    <ambientLight intensity={0.2} /> {/* Oscurece un poco el ambiente */}
-                </group>
-            )}
-
-            {/* Nieve */}
-            {weather === 'snow' && (
-                <group>
-                    <Sparkles count={300} scale={[20, 20, 20]} size={8} speed={0.5} opacity={0.8} color="white" position={[0, 10, 0]} />
-                </group>
-            )}
+            {weather === 'rain' && <Sparkles count={500} scale={[20, 20, 20]} size={4} speed={2} opacity={0.5} color="#60a5fa" position={[0, 10, 0]} />}
+            {weather === 'snow' && <Sparkles count={300} scale={[20, 20, 20]} size={8} speed={0.5} opacity={0.8} color="white" position={[0, 10, 0]} />}
         </group>
     );
 };
 
 // --- COMPONENTES DE LA SALA ---
-
-const Floor = ({ tier }: { tier: number }) => {
-  const color = tier >= 50 ? '#111' : tier >= 20 ? '#0f172a' : '#1e293b';
-  return (
+const Floor = ({ color }: { color: string }) => (
     <group>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]} receiveShadow>
             <planeGeometry args={[30, 30]} />
             <meshStandardMaterial color={color} roughness={0.5} metalness={0.1} />
         </mesh>
         <ContactShadows position={[0, -0.49, 0]} opacity={0.6} scale={40} blur={2} far={4} resolution={512} color="#000000" />
-        {tier >= 5 && tier < 50 && (
-             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.48, 2]} receiveShadow>
-                <circleGeometry args={[3.5, 32]} />
-                <meshStandardMaterial color="#7f1d1d" roughness={1} />
-             </mesh>
-        )}
     </group>
-  );
-};
+);
 
-const Walls = ({ tier }: { tier: number }) => {
-  const color = tier >= 20 ? '#1e3a8a' : '#334155';
+const Walls = ({ color }: { color: string }) => {
   const height = 12;
-  if(tier >= 50) return null; 
-
   return (
     <group>
       <mesh position={[-12, height/2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
@@ -136,39 +86,42 @@ const Walls = ({ tier }: { tier: number }) => {
         <planeGeometry args={[30, height]} />
         <meshStandardMaterial color={adjustColor(color, -30)} roughness={0.9} />
       </mesh>
-      
-      {/* Ventanal Panorámico */}
-      {tier >= 10 && (
-          <group position={[-11.9, 6, 2]} rotation={[0, Math.PI / 2, 0]}>
-              {/* Cristal */}
-              <mesh>
-                 <planeGeometry args={[10, 6]} />
-                 <meshPhysicalMaterial 
-                    color="#a5f3fc" 
-                    transmission={0.9} 
-                    opacity={0.5} 
-                    transparent 
-                    roughness={0}
-                    metalness={0.1}
-                 />
-              </mesh>
-              {/* Marco */}
-              <mesh position={[0, 0, -0.1]}>
-                 <boxGeometry args={[10.4, 6.4, 0.2]} />
-                 <meshStandardMaterial color="#0f172a" />
-              </mesh>
-              {/* Luz entrando (God Rays falsos) */}
-              <spotLight position={[5, 5, 5]} angle={0.5} penumbra={1} intensity={2} color="#a5f3fc" />
-          </group>
-      )}
     </group>
   );
 };
 
+const TrophyShelf = ({ achievements }: { achievements: string[] }) => (
+    <group position={[-11, 4, -5]} rotation={[0, Math.PI/2, 0]}>
+        <mesh castShadow receiveShadow position={[0, 0, 0]}>
+            <boxGeometry args={[4, 0.2, 1]} />
+            <meshStandardMaterial color="#475569" />
+        </mesh>
+        {achievements.slice(0, 5).map((ach, i) => (
+             <mesh key={i} position={[-1.5 + i * 0.8, 0.5, 0]} castShadow>
+                 <sphereGeometry args={[0.3]} />
+                 <meshStandardMaterial color="#fbbf24" metalness={1} roughness={0.2} />
+             </mesh>
+        ))}
+    </group>
+);
+
+const ArcadeMachine = ({ position }: { position: [number, number, number] }) => (
+    <group position={position} rotation={[0, Math.PI/4, 0]}>
+        <mesh castShadow position={[0, 1.5, 0]}>
+            <boxGeometry args={[1, 3, 1]} />
+            <meshStandardMaterial color="#6d28d9" />
+        </mesh>
+        <mesh position={[0, 2, 0.51]}>
+            <planeGeometry args={[0.8, 0.8]} />
+            <ScreenMaterial color="#00ff00" intensity={2} />
+        </mesh>
+    </group>
+);
+
+// ... (Desk, Character, Decoration se mantienen igual)
 const Desk = ({ position, items }: { position: [number, number, number], items: string[] }) => {
   return (
     <group position={position}>
-      {/* Estructura Mesa */}
       {[-1.8, 1.8].map((x, i) => (
           <React.Fragment key={i}>
               <mesh position={[x, 1, 0.8]} castShadow receiveShadow>
@@ -201,7 +154,7 @@ const Desk = ({ position, items }: { position: [number, number, number], items: 
       {/* Monitor Ultrawide */}
       <group position={[0, 2.85, -0.6]}>
           <mesh position={[0, 0.6, 0]} castShadow>
-              <boxGeometry args={[2.8, 1.2, 0.1]} /> {/* Más ancho */}
+              <boxGeometry args={[2.8, 1.2, 0.1]} /> 
               <meshStandardMaterial color="#111" roughness={0.1} />
           </mesh>
           <mesh position={[0, 0.6, 0.06]}>
@@ -210,8 +163,6 @@ const Desk = ({ position, items }: { position: [number, number, number], items: 
           </mesh>
       </group>
       
-      {/* Teclado y Mousepad */}
-      {/* CORRECCIÓN: Rotación movida al mesh padre, no a la geometría */}
       <mesh position={[0, 2.21, 0.4]} rotation={[-Math.PI/2, 0, 0]} receiveShadow>
           <planeGeometry args={[1.8, 0.8]} />
           <meshStandardMaterial color="#1e293b" />
@@ -221,7 +172,6 @@ const Desk = ({ position, items }: { position: [number, number, number], items: 
             <boxGeometry args={[1.4, 0.05, 0.5]} />
             <meshStandardMaterial color="#0f172a" />
          </mesh>
-         {/* RGB Keyboard */}
          {items.includes('setup_pro') && (
              <mesh position={[0, 0.03, 0]} rotation={[-0.1, 0, 0]}>
                  <planeGeometry args={[1.3, 0.4]} />
@@ -237,16 +187,13 @@ const Character = ({ position }: { position: [number, number, number] }) => {
   const group = useRef<THREE.Group>(null);
   useFrame((state) => {
       if (group.current) {
-          // Animación procedural: "Idle" (respirar)
           group.current.position.y = position[1] + Math.sin(state.clock.elapsedTime) * 0.02;
-          // Animación "Teclear" frenético
           group.current.rotation.z = Math.sin(state.clock.elapsedTime * 10) * 0.01;
       }
   });
 
   return (
     <group ref={group} position={position}>
-        {/* Silla Ergonómica */}
         <group position={[0, 0.1, 0]}>
             <mesh position={[0, 0.5, 0]} castShadow>
                 <cylinderGeometry args={[0.4, 0.5, 1, 8]} />
@@ -258,7 +205,6 @@ const Character = ({ position }: { position: [number, number, number] }) => {
             </mesh>
         </group>
 
-        {/* Personaje */}
         <group position={[0, 1.3, 0]}>
             <mesh castShadow>
                 <boxGeometry args={[0.9, 1.1, 0.5]} />
@@ -268,7 +214,6 @@ const Character = ({ position }: { position: [number, number, number] }) => {
                 <boxGeometry args={[0.6, 0.7, 0.6]} />
                 <meshStandardMaterial color="#ffdbac" />
             </mesh>
-            {/* Auriculares */}
             <group position={[0, 1, 0]}>
                 <mesh position={[0.35, 0, 0]}>
                     <boxGeometry args={[0.1, 0.4, 0.3]} />
@@ -290,14 +235,21 @@ const Character = ({ position }: { position: [number, number, number] }) => {
 
 const Decoration = ({ type, position }: { type: string, position: [number, number, number] }) => {
     const [hovered, setHover] = useState(false);
+    const { actions } = useGame();
     useCursor(hovered);
     const scale = hovered ? 1.2 : 1;
+
+    const handleClick = () => {
+        if (type === 'cat') actions.activateBuff('lucky_cat', 60000, 1.5);
+        if (type === 'plant') actions.activateBuff('zen_plant', 60000, 1.1);
+    };
 
     return (
         <group 
             position={position} 
             onPointerOver={() => setHover(true)} 
             onPointerOut={() => setHover(false)}
+            onClick={handleClick}
             scale={[scale, scale, scale]}
         >
             {type === 'plant' && (
@@ -332,7 +284,7 @@ const Decoration = ({ type, position }: { type: string, position: [number, numbe
                             <meshStandardMaterial color="#fb923c" />
                         </mesh>
                      </Float>
-                     {hovered && <Html position={[0,1.5,0]} center><div className="bg-black/80 text-white text-xs p-1 rounded border border-white/20">Miau 🐈</div></Html>}
+                     {hovered && <Html position={[0,1.5,0]} center><div className="bg-black/80 text-white text-xs p-1 rounded border border-white/20">¡Acaríciame! 🐈</div></Html>}
                 </group>
             )}
 
@@ -350,37 +302,15 @@ const Decoration = ({ type, position }: { type: string, position: [number, numbe
                     </group>
                 </Float>
             )}
-
-             {type === 'server' && (
-                <group>
-                     <mesh position={[0, 2.5, 0]} castShadow>
-                         <boxGeometry args={[1.2, 5, 1.2]} />
-                         <meshStandardMaterial color="#0a0a0a" metalness={0.8} roughness={0.2} />
-                     </mesh>
-                     {[...Array(5)].map((_, i) => (
-                        <group key={i} position={[0.61, 1 + i*0.8, 0]}>
-                             <mesh position={[0, 0, 0.2]}>
-                                 <planeGeometry args={[0.1, 0.1]} />
-                                 <ScreenMaterial color="#00ff00" intensity={5} />
-                             </mesh>
-                             <mesh position={[0, 0, -0.2]}>
-                                 <planeGeometry args={[0.1, 0.1]} />
-                                 <ScreenMaterial color="#ff0000" intensity={5} />
-                             </mesh>
-                        </group>
-                     ))}
-                </group>
-            )}
         </group>
     );
 };
 
 // --- ESCENA PRINCIPAL ---
 
-const OfficeScene: React.FC<OfficeVisualProps> = ({ level, items, league }) => {
+const OfficeScene: React.FC<OfficeVisualProps> = ({ level, items, skin, achievements }) => {
   const [isNight, setIsNight] = useState(false);
 
-  // Ciclo Día/Noche
   useEffect(() => {
       const checkTime = () => {
           const hour = new Date().getHours();
@@ -396,8 +326,6 @@ const OfficeScene: React.FC<OfficeVisualProps> = ({ level, items, league }) => {
   if (level >= 10) tier = 3;
   if (level >= 20) tier = 4;
   if (level >= 50) tier = 5;
-
-  const cameraY = 20 + tier * 2;
 
   return (
     <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
@@ -420,17 +348,16 @@ const OfficeScene: React.FC<OfficeVisualProps> = ({ level, items, league }) => {
         <pointLight position={[5, 10, 5]} intensity={0.5} color="#fbbf24" distance={20} />
 
         <group position={[0, -2, 0]}>
-            <Floor tier={tier} />
-            <Walls tier={tier} />
+            <Floor color={skin.floor} />
+            <Walls color={skin.wall} />
             <Desk position={[0, 0, 0]} items={items} />
             <Character position={[0, 0.1, 1.5]} />
+            <TrophyShelf achievements={achievements} />
+            <ArcadeMachine position={[-8, 0, 2]} />
 
             {items.includes('plant') && <Decoration type="plant" position={[5, 0, -4]} />}
             {items.includes('cat') && <Decoration type="cat" position={[-3, 0, 3]} />}
             {items.includes('trophy_gold') && <Decoration type="trophy_gold" position={[-5, 3, -8]} />}
-            
-            {tier >= 5 && <Decoration type="server" position={[-8, 0, -8]} />}
-            {tier >= 20 && <Decoration type="server" position={[-5, 0, -8]} />}
         </group>
 
         <SoftShadows size={10} samples={10} />

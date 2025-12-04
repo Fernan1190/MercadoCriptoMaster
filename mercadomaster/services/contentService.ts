@@ -1,8 +1,7 @@
-import { LessonContent, QuizQuestion } from "../types";
+import { LessonContent, QuizQuestion, CandleData } from "../types";
 import { STATIC_LESSONS } from "../data/staticLessons";
 import { QUESTION_BANK } from "../data/questionBank";
 
-// --- CURRICULUM SYLLABUS ---
 const CURRICULUM: Record<string, string[]> = {
   "Inversor de Bolsa": [
     "Fundamentos de Mercado", "Riesgo vs Recompensa", "Velas Japonesas", "Soportes y Resistencias", "Volumen",
@@ -36,8 +35,6 @@ const getTopicForLevel = (pathTitle: string, level: number): string => {
   return pathCurriculum[topicIndex];
 };
 
-// --- TAG EXTRACTOR ---
-// Maps keywords in the topic title to tags in the question bank
 const getTagsForTopic = (topic: string, isCrypto: boolean): string[] => {
   const tags: string[] = isCrypto ? ['#crypto'] : ['#stocks'];
   const lowerTopic = topic.toLowerCase();
@@ -54,35 +51,105 @@ const getTagsForTopic = (topic: string, isCrypto: boolean): string[] => {
   return tags;
 };
 
-// --- CONTEXTUAL GENERATOR ---
+// --- MEJORA 1: BRAIN GYM ---
+export const generateBrainGymLesson = (mistakes: QuizQuestion[]): LessonContent => {
+  const pool = mistakes.length >= 3 
+    ? mistakes 
+    : [...mistakes, ...QUESTION_BANK.filter(q => q.difficulty === 'hard')];
+    
+  const selectedQuiz = Array.from(new Set(pool.sort(() => 0.5 - Math.random())))
+    .slice(0, 5)
+    .map(q => ({...q, question: `(Repaso) ${q.question}`}));
+
+  return {
+    id: `brain-gym-${Date.now()}`,
+    title: "🧠 Gimnasio Mental",
+    isBossLevel: false,
+    generatedBy: 'fallback',
+    slides: [{
+      title: "Entrenamiento de Recuperación",
+      content: "La repetición espaciada es la clave de la maestría. Vamos a repasar conceptos que te costaron anteriormente o que son de alta dificultad.",
+      icon: "🏋️‍♂️",
+      proTip: "No memorices la respuesta, entiende el porqué."
+    }],
+    quiz: selectedQuiz
+  };
+};
+
+// --- MEJORA 2: TIME TRAVEL ---
+export const generateHistoricalLesson = (era: '2008_crash' | '2020_covid' | '2017_ico'): LessonContent => {
+  let title = "";
+  let content = "";
+  let basePrice = 100;
+  let volatility = 0.02;
+  let trend = -1;
+
+  if (era === '2008_crash') {
+      title = "El Crash de 2008";
+      content = "Estás en Septiembre de 2008. Lehman Brothers acaba de quebrar. El pánico es total.";
+      basePrice = 1500; 
+      trend = -0.8; 
+  } else if (era === '2017_ico') {
+      title = "El Boom de las ICOs 2017";
+      content = "Todo el mundo compra cualquier cosa que tenga 'blockchain' en el nombre. Euforia máxima.";
+      basePrice = 3000; 
+      trend = 1.2;
+      volatility = 0.05;
+  }
+
+  const history: CandleData[] = [];
+  let price = basePrice;
+  for(let i=0; i<50; i++) {
+      const change = 1 + (Math.random() * volatility * 2 - volatility) + (trend * 0.005);
+      price *= change;
+      history.push({
+          time: `Day ${i}`,
+          open: price,
+          high: price * 1.02,
+          low: price * 0.98,
+          close: price * change,
+          volume: Math.floor(Math.random() * 10000)
+      });
+  }
+
+  return {
+    id: `history-${era}`,
+    title: `⏳ Viaje: ${title}`,
+    isBossLevel: true,
+    historicalData: history,
+    slides: [{ title, content, icon: "🕰️", visualType: "chart_candle" }],
+    quiz: [{
+        type: 'binary_prediction',
+        question: `Viendo el gráfico de ${title}, ¿qué harías ahora mismo?`,
+        options: ["Vender (Pánico)", "Comprar (Oportunidad)"],
+        correctIndex: 1,
+        correctAnswerText: "Comprar (Oportunidad)",
+        difficulty: "hard",
+        explanation: "Como dijo Rothschild: 'Compra cuando haya sangre en las calles'. Históricamente, los crashes son las mejores oportunidades de compra."
+    }]
+  };
+};
+
 const generateProceduralLesson = (pathTitle: string, unitTitle: string, level: number): LessonContent => {
   const topic = getTopicForLevel(pathTitle, level);
   const isCrypto = pathTitle.toLowerCase().includes('cripto');
-  
-  // 1. Identify relevant tags for this lesson
   const targetTags = getTagsForTopic(topic, isCrypto);
   
-  // 2. Filter Question Bank for matching tags
-  // We prioritize questions that match MORE tags, but accept any match
   const relevantQuestions = QUESTION_BANK.filter(q => 
-    q.tags.some(tag => targetTags.includes(tag))
+    q.tags?.some(tag => targetTags.includes(tag))
   );
 
-  // 3. Fallback: If not enough relevant questions, use general ones from the path
   const generalQuestions = QUESTION_BANK.filter(q => 
-    q.tags.includes(isCrypto ? '#crypto' : '#stocks') || q.tags.includes('#basics')
+    q.tags?.includes(isCrypto ? '#crypto' : '#stocks') || q.tags?.includes('#basics')
   );
 
   let selectedPool = relevantQuestions.length >= 3 ? relevantQuestions : [...relevantQuestions, ...generalQuestions];
   
-  // Shuffle and pick 3 unique questions
   const shuffled = selectedPool.sort(() => 0.5 - Math.random());
-  // Deduplicate by question text to be safe
   const uniqueQuestions = Array.from(new Set(shuffled.map(q => q.question)))
     .map(qText => shuffled.find(q => q.question === qText)!)
     .slice(0, 3);
 
-  // If still empty (shouldn't happen with a big bank), put a placeholder
   if (uniqueQuestions.length === 0) {
       uniqueQuestions.push({
           type: 'true_false',
@@ -126,21 +193,17 @@ const generateProceduralLesson = (pathTitle: string, unitTitle: string, level: n
   };
 };
 
-// --- MAIN SERVICE FUNCTION ---
 export const getLesson = async (pathId: string, unitId: string, levelInUnit: number, pathTitle: string, unitTitle: string): Promise<LessonContent> => {
-  // 1. Construct the Static ID
   const staticKey = `${pathId}-${unitId}-${levelInUnit}`;
   
-  // 2. Check if we have a handcrafted lesson
   if (STATIC_LESSONS[staticKey]) {
     console.log(`[ContentService] Loading static lesson: ${staticKey}`);
     await new Promise(r => setTimeout(r, 200)); 
     return STATIC_LESSONS[staticKey];
   }
 
-  // 3. Fallback to Contextual Procedural Generation
   const topic = getTopicForLevel(pathTitle, levelInUnit);
-  console.log(`[ContentService] Generating procedural lesson for: ${topic} with tags: ${getTagsForTopic(topic, pathTitle.toLowerCase().includes('cripto')).join(', ')}`);
+  console.log(`[ContentService] Generating procedural lesson for: ${topic}`);
   await new Promise(r => setTimeout(r, 600)); 
   return generateProceduralLesson(pathTitle, unitTitle, levelInUnit);
 };

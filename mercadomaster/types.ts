@@ -14,8 +14,11 @@ export interface UserStats {
   levelRatings: { [lessonId: string]: 1 | 2 | 3 };
   unlockedMarkets: string[];
   
-  // NUEVO: Órdenes Pendientes (SL/TP)
+  // Órdenes
   pendingOrders: PendingOrder[];
+  
+  // Profesor
+  customQuestions: QuizQuestion[]; 
 
   // MAESTRÍA
   lessonNotes: { [lessonId: string]: string }; 
@@ -42,15 +45,21 @@ export interface UserStats {
   minedCoins: number;
   quickNotes: string;
   
-  // TYCOON OFFICE
+  // --- MEJORAS TYCOON (SEDE) ---
   officeItems: string[];
   officeTier: number;
   employees: string[];
   decorations: { id: string, x: number, y: number }[];
   xpMultiplier: number;
+  
+  // Nuevos campos para las mejoras
+  lastSaveTime: number; // Para minería offline
+  activeSkin: { floor: string, wall: string }; // Personalización
+  activeBuffs: { id: string, expiresAt: number, multiplier: number }[]; // Mascotas
+  unlockedSkins: string[]; // Skins compradas
 }
 
-// NUEVA INTERFAZ
+// ... (Resto de interfaces igual: PendingOrder, Transaction, etc.)
 export interface PendingOrder {
   id: string;
   symbol: string;
@@ -80,6 +89,11 @@ export interface Unit {
   color: string;
   totalLevels: number;
   biome?: 'neon' | 'forest' | 'ocean' | 'volcano' | 'space';
+  nextPathOptions?: {
+      pathId: string;
+      title: string;
+      description: string;
+  }[];
 }
 
 export interface LearningPath {
@@ -117,6 +131,7 @@ export interface QuizQuestion {
   correctClozeAnswer?: string;
   explanation: string;
   relatedSlideIndex?: number;
+  tags?: string[];
 }
 
 export interface TheorySlide {
@@ -141,7 +156,8 @@ export interface LessonContent {
   isBossLevel: boolean;
   slides: TheorySlide[];
   quiz: QuizQuestion[];
-  generatedBy?: 'ai' | 'fallback' | 'static';
+  generatedBy?: 'ai' | 'fallback' | 'static' | 'user'; 
+  historicalData?: CandleData[]; 
 }
 
 export interface ChatMessage { role: 'user' | 'model'; text: string; }
@@ -156,8 +172,8 @@ export type AIPersona = 'standard' | 'warren' | 'wolf' | 'socrates';
 export interface SimSettings { leverage: number; showRSI: boolean; showSMA: boolean; }
 export interface Asset { symbol: string; name: string; price: number; change24h: number; type: 'crypto' | 'stock'; }
 export interface CandleData { time: string; open: number; high: number; low: number; close: number; volume: number; }
-
 export type MarketPhase = 'accumulation' | 'bull_run' | 'distribution' | 'bear_market' | 'crash';
+
 export interface MarketEvent {
   id: string;
   title: string;

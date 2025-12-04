@@ -20,7 +20,8 @@ const INITIAL_STATS: UserStats = {
   hearts: 5,
   portfolio: {}, 
   transactions: [],
-  pendingOrders: [], // Inicializamos vacío
+  pendingOrders: [],
+  customQuestions: [],
   unlockedAchievements: [],
   maxHearts: 5,
   masterCoins: 350, 
@@ -37,22 +38,24 @@ const INITIAL_STATS: UserStats = {
   minedCoins: 0,
   quickNotes: "",
   openedChests: [],
-  // Tycoon
   officeItems: [],
   officeTier: 1,
   employees: [],
   decorations: [],
   xpMultiplier: 1,
-  // Maestría
   lessonNotes: {},
   questionsAnswered: 0,
   correctAnswers: 0,
   mistakes: [],
-  // War Room
-  unlockedMarkets: ['ny']
+  unlockedMarkets: ['ny'],
+  // MEJORAS TYCOON
+  lastSaveTime: Date.now(),
+  activeSkin: { floor: '#1e293b', wall: '#334155' },
+  activeBuffs: [],
+  unlockedSkins: ['default']
 };
 
-type SoundType = 'success' | 'error' | 'cash' | 'pop' | 'levelUp' | 'click' | 'chest' | 'news';
+type SoundType = 'success' | 'error' | 'cash' | 'pop' | 'levelUp' | 'click' | 'chest' | 'news' | 'process' | 'meow';
 
 interface GameContextType {
   stats: UserStats;
@@ -78,13 +81,17 @@ interface GameContextType {
     getThemeClass: () => string;
     buyAsset: (symbol: string, amount: number, price: number) => boolean;
     sellAsset: (symbol: string, amount: number, price: number) => boolean;
-    placeOrder: (symbol: string, type: 'stop_loss' | 'take_profit', triggerPrice: number, amount: number) => void; // Nuevo
+    placeOrder: (symbol: string, type: 'stop_loss' | 'take_profit', triggerPrice: number, amount: number) => void;
+    addCustomQuestion: (question: QuizQuestion) => void; 
     playSound: (type: SoundType) => void;
     buyShopItem: (itemId: keyof UserStats['inventory'], cost: number) => boolean;
     buyTheme: (themeId: string, cost: number) => boolean;
     equipTheme: (themeId: any) => void;
     buyOfficeItem: (itemId: string, cost: number) => boolean;
     unlockMarket: (marketId: string) => boolean;
+    // NUEVOS TYCOON
+    activateBuff: (id: string, duration: number, multiplier: number) => void;
+    changeOfficeSkin: (type: 'floor' | 'wall', color: string) => void;
   };
 }
 
@@ -97,25 +104,19 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Migraciones de seguridad
-        if (!parsed.portfolio) parsed.portfolio = {};
-        if (!parsed.transactions) parsed.transactions = [];
-        if (!parsed.pendingOrders) parsed.pendingOrders = []; // Migración
-        if (!parsed.unlockedAchievements) parsed.unlockedAchievements = [];
-        if (!parsed.unlockedThemes) parsed.unlockedThemes = ['default'];
-        if (!parsed.lessonNotes) parsed.lessonNotes = {};
-        if (parsed.questionsAnswered === undefined) parsed.questionsAnswered = 0;
-        if (parsed.correctAnswers === undefined) parsed.correctAnswers = 0;
-        if (!parsed.mistakes) parsed.mistakes = [];
-        if (!parsed.officeItems) parsed.officeItems = [];
-        if (!parsed.unlockedMarkets) parsed.unlockedMarkets = ['ny'];
+        // Migraciones
+        if (!parsed.pendingOrders) parsed.pendingOrders = [];
+        if (!parsed.customQuestions) parsed.customQuestions = [];
+        if (!parsed.activeSkin) parsed.activeSkin = { floor: '#1e293b', wall: '#334155' };
+        if (!parsed.activeBuffs) parsed.activeBuffs = [];
+        if (!parsed.unlockedSkins) parsed.unlockedSkins = ['default'];
+        if (!parsed.lastSaveTime) parsed.lastSaveTime = Date.now();
         return parsed;
       } catch (e) { return INITIAL_STATS; }
     }
     return INITIAL_STATS;
   });
 
-  // 2. ESTADO DE MERCADO
   const [marketState, setMarketState] = useState<MarketState>({
       prices: INITIAL_PRICES,
       history: {},
@@ -157,10 +158,34 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
       case 'click': osc.type = 'square'; osc.frequency.setValueAtTime(800, now); gain.gain.setValueAtTime(0.02, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03); osc.start(now); osc.stop(now + 0.03); break;
       case 'chest': osc.type = 'sine'; osc.frequency.setValueAtTime(400, now); osc.frequency.linearRampToValueAtTime(800, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.start(now); osc.stop(now + 0.5); break;
       case 'news': osc.type = 'square'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(100, now + 0.3); gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.start(now); osc.stop(now + 0.5); break;
+      case 'process': osc.type = 'triangle'; osc.frequency.setValueAtTime(300, now); osc.frequency.linearRampToValueAtTime(600, now + 0.1); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1); osc.start(now); osc.stop(now + 0.1); break;
+      case 'meow': osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1); osc.frequency.exponentialRampToValueAtTime(600, now + 0.3); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3); osc.start(now); osc.stop(now + 0.3); break;
     }
   }, []);
 
-  // --- INICIALIZACIÓN MERCADO ---
+  // --- MINERÍA OFFLINE (MEJORA 1) ---
+  useEffect(() => {
+      // Calcular ganancias mientras estaba cerrado
+      const now = Date.now();
+      const last = stats.lastSaveTime || now;
+      const diffSeconds = Math.floor((now - last) / 1000);
+      
+      if (diffSeconds > 60) { // Mínimo 1 minuto
+          const miningRate = (stats.level * 0.1) + 1; // Monedas por segundo
+          const earned = Math.floor(diffSeconds * miningRate * 0.1); // 10% de eficiencia offline
+          
+          if (earned > 0) {
+              setStats(prev => ({
+                  ...prev,
+                  masterCoins: prev.masterCoins + earned,
+                  lastSaveTime: now
+              }));
+              setTimeout(() => alert(`¡Bienvenido de nuevo! Tus servidores minaron ${earned} monedas mientras no estabas.`), 1000);
+          }
+      }
+  }, []);
+
+  // ... (useEffect de inicialización de mercado igual que antes)
   useEffect(() => {
     const initialHistory: any = {};
     const initialTrend: any = {};
@@ -190,46 +215,37 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
-  // --- BUCLE DE SIMULACIÓN + CHECK DE ÓRDENES ---
+  // --- BUCLE PRINCIPAL + GUARDADO AUTO ---
   useEffect(() => {
     const interval = setInterval(() => {
-      // 1. EVENTOS ALEATORIOS
+      // 1. EVENTOS
       if (Math.random() < 0.05 && marketRef.current.activeEvents.length === 0) {
          const randomEvent = MARKET_EVENTS[Math.floor(Math.random() * MARKET_EVENTS.length)];
          marketRef.current.activeEvents.push({ event: randomEvent, ticksLeft: randomEvent.duration });
          setLatestEvent(randomEvent);
          playSound('news');
       }
-      
-      marketRef.current.activeEvents = marketRef.current.activeEvents
-        .map(e => ({ ...e, ticksLeft: e.ticksLeft - 1 }))
-        .filter(e => e.ticksLeft > 0);
-
+      marketRef.current.activeEvents = marketRef.current.activeEvents.map(e => ({ ...e, ticksLeft: e.ticksLeft - 1 })).filter(e => e.ticksLeft > 0);
       const activeEventsData = marketRef.current.activeEvents.map(e => e.event);
       
+      // 2. PRECIOS
       const currentState = marketRef.current;
       const newHistory: any = { ...currentState.history };
       const newPrices: any = { ...currentState.prices };
       const newTrends: any = { ...currentState.trend };
 
-      // 2. ACTUALIZAR PRECIOS
       Object.keys(currentState.prices).forEach(symbol => {
         const history = currentState.history[symbol];
         if (!history || history.length === 0) return;
-        
         const lastCandle = history[history.length - 1];
-        
         let trendBias = 0;
         let volatilityMultiplier = 1;
-        
         marketRef.current.activeEvents.forEach(({ event }) => {
            // @ts-ignore
            if (event.impact[symbol]) trendBias += event.impact[symbol];
            volatilityMultiplier += (event.impact.volatility || 0);
         });
-        
         const nextCandle = generateNextCandle(lastCandle.close, 0.002 * volatilityMultiplier, trendBias * 0.005);
-        
         // @ts-ignore
         newPrices[symbol] = nextCandle.close;
         // @ts-ignore
@@ -237,26 +253,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         newHistory[symbol] = [...history.slice(1), nextCandle];
       });
 
-      marketRef.current = { 
-          ...currentState, 
-          prices: newPrices, 
-          history: newHistory, 
-          trend: newTrends 
-      };
-      
-      setMarketState({ 
-          prices: newPrices, 
-          history: newHistory, 
-          trend: newTrends, 
-          phase: 'bull_run', 
-          activeEvents: activeEventsData, 
-          globalVolatility: 0.002 
-      });
+      marketRef.current = { ...currentState, prices: newPrices, history: newHistory, trend: newTrends };
+      setMarketState({ prices: newPrices, history: newHistory, trend: newTrends, phase: 'bull_run', activeEvents: activeEventsData, globalVolatility: 0.002 });
 
-      // 3. CHECK AUTOMÁTICO DE ÓRDENES (SL/TP)
+      // 3. SL/TP CHECK + LIMPIEZA DE BUFFS + GUARDADO TIEMPO
       setStats(prev => {
-        if (!prev.pendingOrders || prev.pendingOrders.length === 0) return prev;
-
+        const now = Date.now();
+        // Limpiar buffs expirados
+        const activeBuffs = prev.activeBuffs.filter(b => b.expiresAt > now);
+        
+        // Ejecutar órdenes (SL/TP)
+        if (!prev.pendingOrders || prev.pendingOrders.length === 0) return { ...prev, activeBuffs, lastSaveTime: now };
+        
         const remainingOrders: PendingOrder[] = [];
         let newBalance = prev.balance;
         let newPortfolio = { ...prev.portfolio };
@@ -266,14 +274,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         prev.pendingOrders.forEach(order => {
             const currentPrice = newPrices[order.symbol];
             let triggered = false;
-
-            // Stop Loss: Vender si el precio cae por debajo del trigger
             if (order.type === 'stop_loss' && currentPrice <= order.triggerPrice) triggered = true;
-            // Take Profit: Vender si el precio sube por encima del trigger
             if (order.type === 'take_profit' && currentPrice >= order.triggerPrice) triggered = true;
 
             if (triggered) {
-                // Ejecutar Venta
                 const amountToSell = Math.min(order.amount, newPortfolio[order.symbol] || 0);
                 if (amountToSell > 0) {
                     newBalance += amountToSell * currentPrice;
@@ -288,35 +292,21 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     });
                     hasExecuted = true;
                 }
-                // Orden consumida
             } else {
                 remainingOrders.push(order);
             }
         });
-
-        if (!hasExecuted) return prev; // Sin cambios
-
-        if (hasExecuted) playSound('cash'); // Sonido de ejecución
-
-        return {
-            ...prev,
-            balance: newBalance,
-            portfolio: newPortfolio,
-            transactions: newTransactions,
-            pendingOrders: remainingOrders
-        };
+        if (hasExecuted) playSound('cash');
+        return { ...prev, balance: newBalance, portfolio: newPortfolio, transactions: newTransactions, pendingOrders: remainingOrders, activeBuffs, lastSaveTime: now };
       });
-
     }, 2000);
-
     return () => clearInterval(interval);
-  }, [playSound]); // Dependencia playSound estable
+  }, [playSound]);
 
   useEffect(() => {
     localStorage.setItem('mercadoMasterStats', JSON.stringify(stats));
   }, [stats]);
 
-  // --- LOGROS ---
   const calculateAchievements = (currentStats: UserStats): Partial<UserStats> => {
     const newUnlocked: string[] = [];
     let xpBonus = 0; let coinsBonus = 0;
@@ -340,152 +330,69 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [stats.unlockedAchievements, playSound]);
 
-  // --- ACCIONES ---
+  // --- NUEVAS ACCIONES TYCOON ---
+  const activateBuff = useCallback((id: string, duration: number, multiplier: number) => {
+      setStats(prev => {
+          // Si ya existe, extendemos
+          const existing = prev.activeBuffs.find(b => b.id === id);
+          let newBuffs;
+          if (existing) {
+              newBuffs = prev.activeBuffs.map(b => b.id === id ? { ...b, expiresAt: Date.now() + duration } : b);
+          } else {
+              newBuffs = [...prev.activeBuffs, { id, expiresAt: Date.now() + duration, multiplier }];
+          }
+          return { ...prev, activeBuffs: newBuffs };
+      });
+      playSound('meow');
+  }, [playSound]);
+
+  const changeOfficeSkin = useCallback((type: 'floor' | 'wall', color: string) => {
+      setStats(prev => ({
+          ...prev,
+          activeSkin: { ...prev.activeSkin, [type]: color }
+      }));
+      playSound('click');
+  }, [playSound]);
+
+  // ... (Resto de acciones existentes: updateStats, mineCoin, buyAsset, etc.)
   const updateStats = useCallback((xpGained: number, pathId?: PathId, levelIncrement: number = 0, perfectRun: boolean = false) => {
     setStats(prev => {
+      // Aplicar Buffs
+      const multiplier = prev.activeBuffs.reduce((acc, b) => acc * b.multiplier, 1);
+      const finalXp = Math.floor(xpGained * multiplier);
+      
       let next = { ...prev };
       if (pathId) {
           const newPathProgress = { ...next.pathProgress };
           newPathProgress[pathId] = (newPathProgress[pathId] || 0) + levelIncrement;
           next.pathProgress = newPathProgress;
       }
-      const coinsGained = Math.floor(xpGained / 2);
+      const coinsGained = Math.floor(finalXp / 2);
       const newQuests = next.dailyQuests.map(q => {
         if (q.completed) return q;
         let newProgress = q.progress;
-        if (q.type === 'xp') newProgress += xpGained;
+        if (q.type === 'xp') newProgress += finalXp;
         if (q.type === 'lessons' && levelIncrement > 0) newProgress += 1;
         if (q.type === 'perfect' && perfectRun) newProgress += 1;
         return { ...q, progress: newProgress, completed: newProgress >= q.target };
       });
-      next = { ...next, xp: next.xp + xpGained, masterCoins: next.masterCoins + coinsGained, dailyQuests: newQuests };
+      next = { ...next, xp: next.xp + finalXp, masterCoins: next.masterCoins + coinsGained, dailyQuests: newQuests };
       const newLevel = Math.floor(next.xp / 500) + 1;
       if (newLevel > next.level) next.level = newLevel;
       return { ...next, ...calculateAchievements(next) };
     });
   }, []);
 
-  const mineCoin = useCallback(() => { 
-    playSound('pop'); 
-    setStats(prev => {
-        const next = { ...prev, masterCoins: prev.masterCoins + 1, minedCoins: (prev.minedCoins || 0) + 1 };
-        return { ...next, ...calculateAchievements(next) };
-    }); 
-  }, [playSound]);
-
-  const buyAsset = useCallback((symbol: string, amount: number, currentPrice: number) => {
-    const totalCost = amount * currentPrice;
-    if (stats.balance >= totalCost) {
-      const newTx: Transaction = { id: Date.now().toString(), type: 'buy', symbol, amount, price: currentPrice, timestamp: new Date().toLocaleString() };
-      setStats(prev => {
-        if (prev.balance < totalCost) return prev;
-        const next = { ...prev, balance: prev.balance - totalCost, portfolio: { ...prev.portfolio, [symbol]: (prev.portfolio[symbol] || 0) + amount }, transactions: [newTx, ...(prev.transactions || [])] };
-        return { ...next, ...calculateAchievements(next) };
-      });
-      return true; 
-    }
-    return false; 
-  }, [stats.balance]);
-
-  const sellAsset = useCallback((symbol: string, amount: number, currentPrice: number) => {
-    const currentQty = stats.portfolio[symbol] || 0;
-    if (currentQty >= amount) {
-      const totalGain = amount * currentPrice;
-      const newTx: Transaction = { id: Date.now().toString(), type: 'sell', symbol, amount, price: currentPrice, timestamp: new Date().toLocaleString() };
-      setStats(prev => {
-        if ((prev.portfolio[symbol] || 0) < amount) return prev;
-        const next = { ...prev, balance: prev.balance + totalGain, portfolio: { ...prev.portfolio, [symbol]: (prev.portfolio[symbol] || 0) - amount }, transactions: [newTx, ...(prev.transactions || [])] };
-        return { ...next, ...calculateAchievements(next) };
-      });
-      return true;
-    }
-    return false;
-  }, [stats.portfolio]);
-
-  const placeOrder = useCallback((symbol: string, type: 'stop_loss' | 'take_profit', triggerPrice: number, amount: number) => {
-      setStats(prev => ({
-          ...prev,
-          pendingOrders: [...prev.pendingOrders, {
-              id: Date.now().toString(),
-              symbol,
-              type,
-              triggerPrice,
-              amount
-          }]
-      }));
-      playSound('click');
-  }, [playSound]);
-
-  const unlockMarket = useCallback((marketId: string) => {
-     const market = MARKET_NODES.find(m => m.id === marketId);
-     if (!market) return false;
-
-     if (stats.masterCoins >= market.cost && !stats.unlockedMarkets.includes(marketId)) {
-         playSound('success'); 
-         setStats(prev => ({
-             ...prev,
-             masterCoins: prev.masterCoins - market.cost,
-             unlockedMarkets: [...prev.unlockedMarkets, marketId]
-         }));
-         return true;
-     }
-     playSound('error');
-     return false;
-  }, [stats.masterCoins, stats.unlockedMarkets, playSound]);
-
-  const buyShopItem = useCallback((itemId: keyof UserStats['inventory'], cost: number) => {
-     if (stats.masterCoins >= cost) {
-         playSound('cash');
-         setStats(prev => {
-             const next = { 
-                 ...prev, 
-                 masterCoins: prev.masterCoins - cost,
-                 inventory: { ...prev.inventory, [itemId]: prev.inventory[itemId] + 1 }
-             };
-             return next;
-         });
-         return true;
-     }
-     playSound('error');
-     return false;
-  }, [stats.masterCoins, playSound]);
-
-  const buyTheme = useCallback((themeId: string, cost: number) => {
-      if (stats.masterCoins >= cost && !stats.unlockedThemes.includes(themeId)) {
-          playSound('cash');
-          setStats(prev => ({
-              ...prev,
-              masterCoins: prev.masterCoins - cost,
-              unlockedThemes: [...prev.unlockedThemes, themeId],
-              theme: themeId as any 
-          }));
-          return true;
-      }
-      playSound('error');
-      return false;
-  }, [stats.masterCoins, stats.unlockedThemes, playSound]);
-
-  const equipTheme = useCallback((themeId: any) => {
-      if (stats.unlockedThemes.includes(themeId)) {
-          playSound('click');
-          setStats(prev => ({ ...prev, theme: themeId }));
-      }
-  }, [stats.unlockedThemes, playSound]);
-
-  const buyOfficeItem = useCallback((itemId: string, cost: number) => {
-     if (stats.masterCoins >= cost && !stats.officeItems.includes(itemId)) {
-         playSound('cash');
-         setStats(prev => ({
-             ...prev,
-             masterCoins: prev.masterCoins - cost,
-             officeItems: [...prev.officeItems, itemId]
-         }));
-         return true;
-     }
-     playSound('error');
-     return false;
-  }, [stats.masterCoins, stats.officeItems, playSound]);
-
+  const mineCoin = useCallback(() => { playSound('pop'); setStats(prev => { const next = { ...prev, masterCoins: prev.masterCoins + 1, minedCoins: (prev.minedCoins || 0) + 1 }; return { ...next, ...calculateAchievements(next) }; }); }, [playSound]);
+  const buyAsset = useCallback((symbol: string, amount: number, currentPrice: number) => { const totalCost = amount * currentPrice; if (stats.balance >= totalCost) { const newTx: Transaction = { id: Date.now().toString(), type: 'buy', symbol, amount, price: currentPrice, timestamp: new Date().toLocaleString() }; setStats(prev => { if (prev.balance < totalCost) return prev; const next = { ...prev, balance: prev.balance - totalCost, portfolio: { ...prev.portfolio, [symbol]: (prev.portfolio[symbol] || 0) + amount }, transactions: [newTx, ...(prev.transactions || [])] }; return { ...next, ...calculateAchievements(next) }; }); return true; } return false; }, [stats.balance]);
+  const sellAsset = useCallback((symbol: string, amount: number, currentPrice: number) => { const currentQty = stats.portfolio[symbol] || 0; if (currentQty >= amount) { const totalGain = amount * currentPrice; const newTx: Transaction = { id: Date.now().toString(), type: 'sell', symbol, amount, price: currentPrice, timestamp: new Date().toLocaleString() }; setStats(prev => { if ((prev.portfolio[symbol] || 0) < amount) return prev; const next = { ...prev, balance: prev.balance + totalGain, portfolio: { ...prev.portfolio, [symbol]: (prev.portfolio[symbol] || 0) - amount }, transactions: [newTx, ...(prev.transactions || [])] }; return { ...next, ...calculateAchievements(next) }; }); return true; } return false; }, [stats.portfolio]);
+  const placeOrder = useCallback((symbol: string, type: 'stop_loss' | 'take_profit', triggerPrice: number, amount: number) => { setStats(prev => ({ ...prev, pendingOrders: [...prev.pendingOrders, { id: Date.now().toString(), symbol, type, triggerPrice, amount }] })); playSound('click'); }, [playSound]);
+  const addCustomQuestion = useCallback((question: QuizQuestion) => { setStats(prev => ({ ...prev, customQuestions: [...prev.customQuestions, question], masterCoins: prev.masterCoins + 10 })); playSound('success'); }, [playSound]);
+  const unlockMarket = useCallback((marketId: string) => { const market = MARKET_NODES.find(m => m.id === marketId); if (!market) return false; if (stats.masterCoins >= market.cost && !stats.unlockedMarkets.includes(marketId)) { playSound('success'); setStats(prev => ({ ...prev, masterCoins: prev.masterCoins - market.cost, unlockedMarkets: [...prev.unlockedMarkets, marketId] })); return true; } playSound('error'); return false; }, [stats.masterCoins, stats.unlockedMarkets, playSound]);
+  const buyShopItem = useCallback((itemId: keyof UserStats['inventory'], cost: number) => { if (stats.masterCoins >= cost) { playSound('cash'); setStats(prev => { const next = { ...prev, masterCoins: prev.masterCoins - cost, inventory: { ...prev.inventory, [itemId]: prev.inventory[itemId] + 1 } }; return next; }); return true; } playSound('error'); return false; }, [stats.masterCoins, playSound]);
+  const buyTheme = useCallback((themeId: string, cost: number) => { if (stats.masterCoins >= cost && !stats.unlockedThemes.includes(themeId)) { playSound('cash'); setStats(prev => ({ ...prev, masterCoins: prev.masterCoins - cost, unlockedThemes: [...prev.unlockedThemes, themeId], theme: themeId as any })); return true; } playSound('error'); return false; }, [stats.masterCoins, stats.unlockedThemes, playSound]);
+  const equipTheme = useCallback((themeId: any) => { if (stats.unlockedThemes.includes(themeId)) { playSound('click'); setStats(prev => ({ ...prev, theme: themeId })); } }, [stats.unlockedThemes, playSound]);
+  const buyOfficeItem = useCallback((itemId: string, cost: number) => { if (stats.masterCoins >= cost && !stats.officeItems.includes(itemId)) { playSound('cash'); setStats(prev => ({ ...prev, masterCoins: prev.masterCoins - cost, officeItems: [...prev.officeItems, itemId] })); return true; } playSound('error'); return false; }, [stats.masterCoins, stats.officeItems, playSound]);
   const deductHeart = useCallback(() => { playSound('error'); setStats(prev => ({ ...prev, hearts: Math.max(0, prev.hearts - 1) })); }, [playSound]);
   const buyHearts = useCallback(() => { if (stats.masterCoins >= 300) { setStats(prev => ({ ...prev, masterCoins: prev.masterCoins - 300, hearts: prev.maxHearts })); playSound('cash'); return true; } playSound('error'); return false; }, [stats.masterCoins, playSound]);
   const useItem = useCallback((type: 'hint5050' | 'timeFreeze' | 'skip') => { return true; }, []);
@@ -503,8 +410,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
   const contextValue = useMemo(() => ({
     stats, latestAchievement, clearAchievement, market: marketState, latestEvent, clearEvent,
-    actions: { updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket, placeOrder }
-  }), [stats, marketState, latestAchievement, latestEvent, updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket, placeOrder, clearEvent]);
+    actions: { updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket, placeOrder, addCustomQuestion, activateBuff, changeOfficeSkin }
+  }), [stats, marketState, latestAchievement, latestEvent, updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket, placeOrder, addCustomQuestion, clearEvent, activateBuff, changeOfficeSkin]);
 
   return (
     <GameContext.Provider value={contextValue}>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGame } from '../context/GameContext'; 
-import { XCircle, Timer, Heart } from 'lucide-react';
+import { XCircle, Timer, Heart, BrainCircuit, History, Share2, PenTool } from 'lucide-react';
 import { PathId, LessonContent, Unit, LearningPath, GameMode } from '../types';
-import { getLesson } from '../services/contentService';
+import { getLesson, generateBrainGymLesson, generateHistoricalLesson } from '../services/contentService';
 import { simplifyText } from '../services/geminiService';
 import { LessonMap } from './learn/LessonMap';
 import { LessonTheory } from './learn/LessonTheory';
@@ -43,7 +43,6 @@ type LessonPhase = 'intro' | 'theory' | 'quiz' | 'outro';
 
 export const Learn: React.FC = () => {
   const { stats, actions } = useGame();
-  // Extraemos 'openChest' y 'playSound' y 'recordAnswer' del contexto
   const { updateStats, deductHeart, buyHearts, useItem, addBookmark, openChest, playSound, recordAnswer } = actions;
 
   const [selectedPathId, setSelectedPathId] = useState<PathId | null>(null);
@@ -150,6 +149,38 @@ export const Learn: React.FC = () => {
 
   }, [activeLesson, currentQuestionIndex]);
 
+  const startBrainGym = () => {
+      setIsLoading(true);
+      setLoadingMessage("Recopilando tus fallos...");
+      setLoadingProgress(50);
+      
+      setTimeout(() => {
+          const lesson = generateBrainGymLesson(stats.mistakes || []);
+          setActiveLesson(lesson);
+          setIsLoading(false);
+          setPhase('theory'); 
+      }, 800);
+  };
+
+  const startTimeTravel = (era: '2008_crash') => {
+      setIsLoading(true);
+      setLoadingMessage("Calibrando Condensador de Fluzo...");
+      
+      setTimeout(() => {
+          const lesson = generateHistoricalLesson(era);
+          setActiveLesson(lesson);
+          setIsLoading(false);
+          setPhase('theory');
+      }, 1000);
+  };
+
+  const copyDuelLink = () => {
+      const duelCode = btoa(JSON.stringify({ u: stats.league, s: stats.xp })); // Código fake
+      navigator.clipboard.writeText(`MercadoMaster Duel: ${duelCode}`);
+      alert("¡Enlace de duelo copiado! Envíalo a un amigo (Simulado)");
+      actions.playSound('pop');
+  };
+
   const handleStartGameMode = async (mode: GameMode) => {
       setGameMode(mode);
       if (stats.hearts <= 0) { setShowGameOver(true); return; }
@@ -228,15 +259,6 @@ export const Learn: React.FC = () => {
      deductHeart();
   }, [deductHeart]);
 
-  const handleExplainAgain = async () => {
-      if (!activeLesson) return;
-      const q = activeLesson.quiz[currentQuestionIndex];
-      setIsSimplifying(true);
-      const newExpl = await simplifyText("Explica por qué la respuesta correcta es la correcta para: " + q.question);
-      setExplanationOverride(newExpl);
-      setIsSimplifying(false);
-  };
-
   const handleMatchClick = (item: any) => {
       if (matchingState.matchedIds.includes(item.id)) return;
       if (!matchingState.selectedId) {
@@ -270,21 +292,6 @@ export const Learn: React.FC = () => {
       playSound('pop');
   };
 
-  const handleSentimentSwipe = (sentiment: 'bullish' | 'bearish') => {
-      if (!activeLesson) return;
-      const q = activeLesson.quiz[currentQuestionIndex];
-      const card = q.sentimentCards?.[sentimentState.index];
-      if (!card) return;
-
-      const isCorrect = card.sentiment === sentiment;
-      setSentimentState(prev => ({
-          index: prev.index + 1,
-          correctCount: isCorrect ? prev.correctCount + 1 : prev.correctCount,
-          answers: [...prev.answers, isCorrect]
-      }));
-      playSound(isCorrect ? 'pop' : 'error');
-  };
-
   const checkAnswer = () => {
     if (!activeLesson) return;
     if (gameMode !== 'time_trial') setTimerActive(false);
@@ -294,7 +301,6 @@ export const Learn: React.FC = () => {
 
     let correct = false;
 
-    // Lógica de validación
     if (q.type === 'matching') {
         correct = matchingState.matchedIds.length === matchingState.shuffledItems.length;
     } 
@@ -340,10 +346,8 @@ export const Learn: React.FC = () => {
         correct = indexMatch || textMatch;
     }
 
-    // 2. MAESTRÍA: Registrar respuesta
     recordAnswer(correct, q);
 
-    // 3. Feedback
     setIsCorrect(correct);
     setShowFeedback(true);
     
@@ -422,17 +426,38 @@ export const Learn: React.FC = () => {
 
   if (!activeLesson) {
      return (
-        <LessonMap 
-           paths={PATHS} 
-           selectedPathId={selectedPathId} 
-           stats={stats} 
-           onSelectPath={setSelectedPathId} 
-           onStartLevel={startLevel}
-           onStartGameMode={handleStartGameMode}
-           onUpdateStats={updateStats}
-           playSound={playSound}
-           onOpenChest={openChest} 
-        />
+        <div className="h-full flex flex-col">
+            {/* --- BARRA DE HERRAMIENTAS NUEVA (Mejoras 1, 2, 4, 5) --- */}
+            <div className="bg-slate-900 p-4 border-b border-slate-800 flex gap-4 overflow-x-auto">
+                <button onClick={startBrainGym} className="flex items-center gap-2 bg-fuchsia-900/20 text-fuchsia-400 px-4 py-2 rounded-xl border border-fuchsia-500/30 hover:bg-fuchsia-900/40 transition-all font-bold text-xs whitespace-nowrap">
+                    <BrainCircuit size={16}/> Gimnasio Mental
+                </button>
+                
+                <button onClick={() => startTimeTravel('2008_crash')} className="flex items-center gap-2 bg-amber-900/20 text-amber-400 px-4 py-2 rounded-xl border border-amber-500/30 hover:bg-amber-900/40 transition-all font-bold text-xs whitespace-nowrap">
+                    <History size={16}/> Crash 2008
+                </button>
+
+                <button onClick={copyDuelLink} className="flex items-center gap-2 bg-blue-900/20 text-blue-400 px-4 py-2 rounded-xl border border-blue-500/30 hover:bg-blue-900/40 transition-all font-bold text-xs whitespace-nowrap">
+                    <Share2 size={16}/> Desafiar Amigo
+                </button>
+                
+                <button onClick={() => (document.querySelector('a[href="/profile"]') as HTMLElement)?.click()} className="flex items-center gap-2 bg-slate-800 text-slate-400 px-4 py-2 rounded-xl border border-slate-700 hover:text-white transition-all font-bold text-xs whitespace-nowrap">
+                    <PenTool size={16}/> Crear Pregunta
+                </button>
+            </div>
+
+            <LessonMap 
+               paths={PATHS} 
+               selectedPathId={selectedPathId} 
+               stats={stats} 
+               onSelectPath={setSelectedPathId} 
+               onStartLevel={startLevel}
+               onStartGameMode={handleStartGameMode}
+               onUpdateStats={updateStats}
+               playSound={playSound}
+               onOpenChest={openChest} 
+            />
+        </div>
      );
   }
 
@@ -558,7 +583,6 @@ export const Learn: React.FC = () => {
                     </div>
                 )}
 
-                {/* --- CLOZE (Rellenar Huecos) --- */}
                 {q.type === 'cloze' && q.clozeText && q.clozeOptions && (
                     <div className="flex flex-col gap-8">
                         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 text-xl md:text-2xl font-medium leading-relaxed text-center">

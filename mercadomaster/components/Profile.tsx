@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
-import { User, Award, Target, Zap, BrainCircuit, Shield, TrendingUp, Calendar, CheckCircle } from 'lucide-react';
+import { User, Award, Target, Zap, BrainCircuit, Shield, TrendingUp, CheckCircle, PenTool, Plus, Save } from 'lucide-react';
 
 export const Profile: React.FC = () => {
-  const { stats } = useGame();
+  const { stats, actions } = useGame();
+  const { addCustomQuestion } = actions; 
 
   // Calcular estadísticas derivadas
   const accuracy = stats.questionsAnswered > 0 
@@ -17,6 +18,33 @@ export const Profile: React.FC = () => {
   if (stats.level >= 5) rankTitle = "Aprendiz";
   if (stats.level >= 10) rankTitle = "Trader";
   if (stats.level >= 20) rankTitle = "Maestro";
+
+  // Estados para el Modo Profesor
+  const [showCreator, setShowCreator] = useState(false);
+  const [newQuestion, setNewQuestion] = useState({ q: "", a: "", w1: "", w2: "" });
+
+  const handleSaveQuestion = () => {
+      if (!newQuestion.q || !newQuestion.a) return alert("Rellena al menos pregunta y respuesta correcta.");
+      
+      const qData = {
+          type: 'multiple_choice' as const,
+          question: newQuestion.q,
+          options: [newQuestion.a, newQuestion.w1, newQuestion.w2].filter(Boolean).sort(() => 0.5 - Math.random()),
+          correctAnswerText: newQuestion.a,
+          correctIndex: 0, 
+          difficulty: 'medium' as const,
+          explanation: "Pregunta creada por la comunidad.",
+          tags: ['#custom']
+      };
+      
+      // Ajustar el índice correcto después de barajar (el array options ya está mezclado)
+      qData.correctIndex = qData.options.indexOf(newQuestion.a);
+
+      addCustomQuestion(qData);
+      alert("¡Pregunta guardada! Aparecerá en tus próximas sesiones de repaso.");
+      setShowCreator(false);
+      setNewQuestion({ q: "", a: "", w1: "", w2: "" });
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto pb-24 animate-fade-in">
@@ -77,6 +105,44 @@ export const Profile: React.FC = () => {
           </div>
        </div>
 
+       {/* MEJORA 5: MODO PROFESOR (Creador de Preguntas) */}
+       <div className="mb-12 bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 relative overflow-hidden">
+           <div className="flex justify-between items-center mb-6">
+               <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                   <PenTool className="text-indigo-400"/> Taller del Profesor
+               </h3>
+               <button onClick={() => setShowCreator(!showCreator)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2">
+                   <Plus size={16}/> {showCreator ? 'Cerrar' : 'Crear Pregunta'}
+               </button>
+           </div>
+
+           {showCreator ? (
+               <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 animate-slide-up">
+                   <div className="space-y-4">
+                       <input 
+                           className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:border-indigo-500 outline-none" 
+                           placeholder="Escribe tu pregunta aquí..." 
+                           value={newQuestion.q}
+                           onChange={e => setNewQuestion({...newQuestion, q: e.target.value})}
+                       />
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                           <input className="bg-green-900/20 border border-green-500/30 rounded-xl p-3 text-green-200 placeholder-green-700" placeholder="Respuesta Correcta" value={newQuestion.a} onChange={e => setNewQuestion({...newQuestion, a: e.target.value})} />
+                           <input className="bg-red-900/20 border border-red-500/30 rounded-xl p-3 text-red-200 placeholder-red-800" placeholder="Respuesta Incorrecta 1" value={newQuestion.w1} onChange={e => setNewQuestion({...newQuestion, w1: e.target.value})} />
+                           <input className="bg-red-900/20 border border-red-500/30 rounded-xl p-3 text-red-200 placeholder-red-800" placeholder="Respuesta Incorrecta 2" value={newQuestion.w2} onChange={e => setNewQuestion({...newQuestion, w2: e.target.value})} />
+                       </div>
+                       <button onClick={handleSaveQuestion} className="w-full py-3 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-200 flex items-center justify-center gap-2">
+                           <Save size={18}/> Guardar en la Base de Datos
+                       </button>
+                   </div>
+               </div>
+           ) : (
+               <div className="text-center py-8 border-2 border-dashed border-slate-800 rounded-2xl text-slate-500">
+                   <p>Contribuye a la comunidad creando contenido educativo.</p>
+                   <p className="text-xs mt-2">Ganas 10 Coins por cada pregunta aprobada.</p>
+               </div>
+           )}
+       </div>
+
        {/* BÓVEDA DE ERRORES (BRAIN GYM) */}
        <div className="bg-gradient-to-r from-red-900/20 to-orange-900/20 p-8 rounded-[2.5rem] border border-red-500/20 relative overflow-hidden mb-12">
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
@@ -95,7 +161,15 @@ export const Profile: React.FC = () => {
                       ? 'bg-red-500 hover:bg-red-400 text-white cursor-pointer' 
                       : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
                 disabled={mistakesCount === 0}
-                onClick={() => alert("El modo repaso estará disponible en la próxima versión.")}
+                // Redirige al modo aprender y lanza el Brain Gym (requiere que Learn.tsx maneje esto o el usuario navegue manualmente)
+                onClick={() => {
+                    const learnButton = document.querySelector('a[href="/learn"]') as HTMLElement;
+                    if(learnButton) {
+                        learnButton.click();
+                        // Nota: En una implementación completa, usaríamos un parámetro URL (?mode=braingym)
+                        setTimeout(() => alert("¡Ve a la sección 'Aprender' y pulsa 'Gimnasio Mental'!"), 500);
+                    }
+                }}
              >
                 {mistakesCount > 0 ? <><Zap fill="currentColor"/> ENTRENAR FALLOS</> : <><CheckCircle/> TODO LIMPIO</>}
              </button>
