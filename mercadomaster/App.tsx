@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { Learn } from './components/Learn';
 import { Dashboard } from './components/Dashboard';
@@ -8,22 +9,31 @@ import { Profile } from './components/Profile';
 import { Office } from './components/Office';
 import { AchievementPopup } from './components/AchievementPopup';
 import { GameProvider, useGame } from './context/GameContext'; 
-
-// Importaciones para el sistema de viaje
 import { WarRoom } from './components/WarRoom';
 import { CityTradingView } from './components/CityTradingView';
-import { MarketNode } from './types';
+import { MARKET_NODES } from './data/markets';
+
+// Wrapper para capturar el ID de la URL y pasar el objeto market correcto
+const CityWrapper = () => {
+  const { marketId } = useParams();
+  const navigate = useNavigate();
+  const market = MARKET_NODES.find(m => m.id === marketId);
+
+  // Si el mercado no existe (url inválida), volvemos al mapa
+  if (!market) return <Navigate to="/map" />;
+  
+  return <CityTradingView market={market} onBack={() => navigate('/map')} />;
+};
+
+// Componente Wrapper para Dashboard que requiere prop setView
+// (Aunque ahora navegamos por URL, el componente interno podría usarlo para accesos directos)
+const DashboardWrapper = () => {
+    const navigate = useNavigate();
+    return <Dashboard setView={(path) => navigate(path === 'dashboard' ? '/' : `/${path}`)} />;
+};
 
 const AppContent = () => {
-  const [view, setView] = useState('dashboard');
-  const [activeMarket, setActiveMarket] = useState<MarketNode | null>(null); // Guardamos la ciudad activa
-  const { stats, actions, latestAchievement, clearAchievement } = useGame();
-  
-  // Función para viajar a una ciudad específica
-  const handleTravelToCity = (market: MarketNode) => {
-      setActiveMarket(market);
-      setView('city_trading'); // Cambiamos la vista principal
-  };
+  const { actions, latestAchievement, clearAchievement, stats } = useGame();
 
   useEffect(() => {
     const hasGreeted = sessionStorage.getItem('hasGreeted');
@@ -45,35 +55,29 @@ const AppContent = () => {
       
       <AchievementPopup achievement={latestAchievement} onClose={clearAchievement} />
 
-      {/* La Sidebar se oculta si estamos en "Modo Ciudad" para inmersión total, o puedes dejarla si prefieres */}
-      {view !== 'city_trading' && (
-          <Sidebar currentView={view} setView={setView} stats={stats} />
-      )}
+      {/* Sidebar de navegación */}
+      <Sidebar />
       
       <main className="flex-1 overflow-y-auto w-full relative z-10 custom-scrollbar">
-        {view === 'dashboard' && <Dashboard setView={setView} />}
-        
-        {/* VISTA 1: El Mapa Global */}
-        {view === 'war_room' && (
-            <WarRoom onEnterMarket={handleTravelToCity} />
-        )}
-
-        {/* VISTA 2: La Ciudad Específica (Destino del viaje) */}
-        {view === 'city_trading' && activeMarket && (
-            <CityTradingView 
-               market={activeMarket} 
-               onBack={() => {
-                   setActiveMarket(null);
-                   setView('war_room'); // Al volver, regresamos al mapa
-               }} 
-            />
-        )}
-
-        {view === 'office' && <Office />}
-        {view === 'learn' && <Learn />}
-        {view === 'shop' && <Shop />}
-        {view === 'leaderboard' && <Leaderboard />}
-        {view === 'profile' && <Profile />}
+        <Routes>
+          <Route path="/" element={<DashboardWrapper />} />
+          <Route path="/office" element={<Office />} />
+          
+          {/* Rutas de Mapa y Ciudad */}
+          <Route path="/map" element={<WarRoom onEnterMarket={(m) => window.location.href = `/city/${m.id}`} />} /> 
+          {/* Nota: WarRoom usa onEnterMarket prop. Lo ideal sería refactorizar WarRoom para usar useNavigate internamente, 
+             pero pasándole esto como prop funciona para mantener compatibilidad rápida */}
+             
+          <Route path="/city/:marketId" element={<CityWrapper />} />
+          
+          <Route path="/learn" element={<Learn />} />
+          <Route path="/shop" element={<Shop />} />
+          <Route path="/ranking" element={<Leaderboard />} />
+          <Route path="/profile" element={<Profile />} />
+          
+          {/* Redirección por defecto */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
       </main>
     </div>
   );
@@ -81,8 +85,10 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <GameProvider>
-      <AppContent />
-    </GameProvider>
+    <BrowserRouter>
+      <GameProvider>
+        <AppContent />
+      </GameProvider>
+    </BrowserRouter>
   );
 }

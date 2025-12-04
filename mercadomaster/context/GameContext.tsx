@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
-import { UserStats, PathId, DailyQuest, Transaction, Achievement, CandleData, QuizQuestion, MarketEvent, MarketState } from '../types';
+import { UserStats, PathId, DailyQuest, Transaction, Achievement, CandleData, QuizQuestion, MarketEvent, MarketState, PendingOrder } from '../types';
 import { INITIAL_PRICES, generateNextCandle } from '../services/marketSimulator';
 import { ACHIEVEMENTS } from '../data/achievements';
 import { MARKET_EVENTS } from '../data/events';
@@ -20,6 +20,7 @@ const INITIAL_STATS: UserStats = {
   hearts: 5,
   portfolio: {}, 
   transactions: [],
+  pendingOrders: [], // Inicializamos vacío
   unlockedAchievements: [],
   maxHearts: 5,
   masterCoins: 350, 
@@ -77,6 +78,7 @@ interface GameContextType {
     getThemeClass: () => string;
     buyAsset: (symbol: string, amount: number, price: number) => boolean;
     sellAsset: (symbol: string, amount: number, price: number) => boolean;
+    placeOrder: (symbol: string, type: 'stop_loss' | 'take_profit', triggerPrice: number, amount: number) => void; // Nuevo
     playSound: (type: SoundType) => void;
     buyShopItem: (itemId: keyof UserStats['inventory'], cost: number) => boolean;
     buyTheme: (themeId: string, cost: number) => boolean;
@@ -95,9 +97,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Migraciones de seguridad para evitar crashes
+        // Migraciones de seguridad
         if (!parsed.portfolio) parsed.portfolio = {};
         if (!parsed.transactions) parsed.transactions = [];
+        if (!parsed.pendingOrders) parsed.pendingOrders = []; // Migración
         if (!parsed.unlockedAchievements) parsed.unlockedAchievements = [];
         if (!parsed.unlockedThemes) parsed.unlockedThemes = ['default'];
         if (!parsed.lessonNotes) parsed.lessonNotes = {};
@@ -187,9 +190,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
-  // --- BUCLE DE SIMULACIÓN ---
+  // --- BUCLE DE SIMULACIÓN + CHECK DE ÓRDENES ---
   useEffect(() => {
     const interval = setInterval(() => {
+      // 1. EVENTOS ALEATORIOS
       if (Math.random() < 0.05 && marketRef.current.activeEvents.length === 0) {
          const randomEvent = MARKET_EVENTS[Math.floor(Math.random() * MARKET_EVENTS.length)];
          marketRef.current.activeEvents.push({ event: randomEvent, ticksLeft: randomEvent.duration });
@@ -208,6 +212,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
       const newPrices: any = { ...currentState.prices };
       const newTrends: any = { ...currentState.trend };
 
+      // 2. ACTUALIZAR PRECIOS
       Object.keys(currentState.prices).forEach(symbol => {
         const history = currentState.history[symbol];
         if (!history || history.length === 0) return;
@@ -247,10 +252,65 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
           activeEvents: activeEventsData, 
           globalVolatility: 0.002 
       });
+
+      // 3. CHECK AUTOMÁTICO DE ÓRDENES (SL/TP)
+      setStats(prev => {
+        if (!prev.pendingOrders || prev.pendingOrders.length === 0) return prev;
+
+        const remainingOrders: PendingOrder[] = [];
+        let newBalance = prev.balance;
+        let newPortfolio = { ...prev.portfolio };
+        let newTransactions = [...prev.transactions];
+        let hasExecuted = false;
+
+        prev.pendingOrders.forEach(order => {
+            const currentPrice = newPrices[order.symbol];
+            let triggered = false;
+
+            // Stop Loss: Vender si el precio cae por debajo del trigger
+            if (order.type === 'stop_loss' && currentPrice <= order.triggerPrice) triggered = true;
+            // Take Profit: Vender si el precio sube por encima del trigger
+            if (order.type === 'take_profit' && currentPrice >= order.triggerPrice) triggered = true;
+
+            if (triggered) {
+                // Ejecutar Venta
+                const amountToSell = Math.min(order.amount, newPortfolio[order.symbol] || 0);
+                if (amountToSell > 0) {
+                    newBalance += amountToSell * currentPrice;
+                    newPortfolio[order.symbol] -= amountToSell;
+                    newTransactions.unshift({
+                        id: `auto-${Date.now()}-${Math.random()}`,
+                        type: 'sell',
+                        symbol: order.symbol,
+                        amount: amountToSell,
+                        price: currentPrice,
+                        timestamp: new Date().toLocaleTimeString() + ` [AUTO ${order.type === 'stop_loss' ? 'SL' : 'TP'}]`
+                    });
+                    hasExecuted = true;
+                }
+                // Orden consumida
+            } else {
+                remainingOrders.push(order);
+            }
+        });
+
+        if (!hasExecuted) return prev; // Sin cambios
+
+        if (hasExecuted) playSound('cash'); // Sonido de ejecución
+
+        return {
+            ...prev,
+            balance: newBalance,
+            portfolio: newPortfolio,
+            transactions: newTransactions,
+            pendingOrders: remainingOrders
+        };
+      });
+
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [playSound]);
+  }, [playSound]); // Dependencia playSound estable
 
   useEffect(() => {
     localStorage.setItem('mercadoMasterStats', JSON.stringify(stats));
@@ -342,6 +402,20 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     return false;
   }, [stats.portfolio]);
 
+  const placeOrder = useCallback((symbol: string, type: 'stop_loss' | 'take_profit', triggerPrice: number, amount: number) => {
+      setStats(prev => ({
+          ...prev,
+          pendingOrders: [...prev.pendingOrders, {
+              id: Date.now().toString(),
+              symbol,
+              type,
+              triggerPrice,
+              amount
+          }]
+      }));
+      playSound('click');
+  }, [playSound]);
+
   const unlockMarket = useCallback((marketId: string) => {
      const market = MARKET_NODES.find(m => m.id === marketId);
      if (!market) return false;
@@ -429,8 +503,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
   const contextValue = useMemo(() => ({
     stats, latestAchievement, clearAchievement, market: marketState, latestEvent, clearEvent,
-    actions: { updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket }
-  }), [stats, marketState, latestAchievement, latestEvent, updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket, clearEvent]);
+    actions: { updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket, placeOrder }
+  }), [stats, marketState, latestAchievement, latestEvent, updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket, placeOrder, clearEvent]);
 
   return (
     <GameContext.Provider value={contextValue}>

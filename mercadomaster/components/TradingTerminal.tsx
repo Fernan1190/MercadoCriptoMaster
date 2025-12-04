@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Activity, Keyboard, LineChart as LineChartIcon, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Activity, LineChart as LineChartIcon, Loader2, CheckCircle2, AlertCircle, ArrowDownToLine, ArrowUpToLine, Layers } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { OrderBook } from './OrderBook'; 
 
-// Definimos las props para recibir la configuración de la ciudad
 interface TradingTerminalProps {
-  allowedAssets?: string[]; // Ej: ['AAPL', 'TSLA'] para NY
-  defaultAsset?: string;    // Activo seleccionado por defecto
-  onClose?: () => void;     // Opcional: por si necesitamos cerrar algo
+  allowedAssets?: string[];
+  defaultAsset?: string;
+  onClose?: () => void;
 }
 
 export const TradingTerminal: React.FC<TradingTerminalProps> = ({ 
@@ -19,49 +18,62 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   const { stats, actions, market } = useGame(); 
   const { playSound } = actions; 
   
-  // Usamos el prop o el primero de la lista si no hay default
   const [activeSymbol, setActiveSymbol] = useState(defaultAsset || allowedAssets[0]);
   const [tradeAmount, setTradeAmount] = useState('');
-  const [showIndicators, setShowIndicators] = useState(false);
   
-  // Estados visuales de la operación
+  // Configuración de Indicadores
+  const [showSMA, setShowSMA] = useState(false);
+  const [showBollinger, setShowBollinger] = useState(false);
+  
+  // Estados para SL / TP
+  const [slPrice, setSlPrice] = useState('');
+  const [tpPrice, setTpPrice] = useState('');
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [tradeStatus, setTradeStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState('');
 
-  // Efecto: Si cambiamos de ciudad (cambian los allowedAssets), reseteamos el activo activo
   useEffect(() => {
      if (!allowedAssets.includes(activeSymbol)) {
          setActiveSymbol(allowedAssets[0]);
      }
   }, [allowedAssets, activeSymbol]);
 
-  // Datos vivos
   const rawData = market.history[activeSymbol] || [];
   const price = market.prices[activeSymbol] || 0;
   const isUp = market.trend[activeSymbol] === 'up';
   
-  // Saldos
   const cashBalance = stats.balance;
   const assetBalance = stats.portfolio?.[activeSymbol] || 0;
   const ownedValue = assetBalance * price;
 
-  // --- CÁLCULO DE INDICADORES ---
+  // --- CÁLCULO AVANZADO DE INDICADORES ---
   const chartData = useMemo(() => {
       if (rawData.length === 0) return [];
-      const period = 7;
+      const period = 20; // Estándar para Bollinger
+      
       return rawData.map((candle, index, array) => {
           let sma = null;
+          let upperBand = null;
+          let lowerBand = null;
+
           if (index >= period - 1) {
               const slice = array.slice(index - period + 1, index + 1);
               const sum = slice.reduce((acc, curr) => acc + curr.close, 0);
               sma = sum / period;
+
+              // Cálculo de Desviación Estándar para Bollinger
+              const squaredDiffs = slice.map(c => Math.pow(c.close - sma!, 2));
+              const variance = squaredDiffs.reduce((acc, curr) => acc + curr, 0) / period;
+              const stdDev = Math.sqrt(variance);
+              
+              upperBand = sma + (stdDev * 2);
+              lowerBand = sma - (stdDev * 2);
           }
-          return { ...candle, sma };
+          return { ...candle, sma, upperBand, lowerBand };
       });
   }, [rawData]);
 
-  // --- EJECUCIÓN DE ORDEN ---
   const handleTrade = useCallback(async (type: 'buy' | 'sell') => {
     if (isProcessing) return;
 
@@ -91,12 +103,11 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         return;
     }
 
-    // Simular proceso
     setIsProcessing(true);
     setTradeStatus('idle');
     playSound('click'); 
 
-    await new Promise(resolve => setTimeout(resolve, 500)); // Latencia simulada
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     let success = false;
     if (type === 'buy') success = actions.buyAsset(activeSymbol, amount, price);
@@ -117,6 +128,20 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     setTimeout(() => setTradeStatus('idle'), 3000);
 
   }, [tradeAmount, activeSymbol, price, actions, playSound, isProcessing, cashBalance, assetBalance]);
+
+  const handlePlaceOrder = (type: 'stop_loss' | 'take_profit') => {
+      const trigger = type === 'stop_loss' ? parseFloat(slPrice) : parseFloat(tpPrice);
+      if (!trigger || trigger <= 0) return;
+      
+      actions.placeOrder(activeSymbol, type, trigger, assetBalance);
+      
+      if (type === 'stop_loss') setSlPrice('');
+      else setTpPrice('');
+      
+      setTradeStatus('success');
+      setStatusMessage(`${type === 'stop_loss' ? 'STOP LOSS' : 'TAKE PROFIT'} FIJADO`);
+      setTimeout(() => setTradeStatus('idle'), 2000);
+  };
 
   return (
     <div className="bg-slate-900/50 rounded-3xl border border-slate-700/50 p-6 shadow-2xl relative overflow-hidden h-full flex flex-col backdrop-blur-sm">
@@ -148,11 +173,25 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         </div>
         
         <div className="flex gap-2">
-           <button onClick={() => setShowIndicators(!showIndicators)} className={`p-2 rounded-lg transition-all ${showIndicators ? 'bg-purple-500/20 text-purple-400 border border-purple-500/50' : 'bg-slate-800 text-slate-500 border border-slate-700'}`} title="Indicadores">
-              <LineChartIcon size={18}/>
-           </button>
+           {/* Selector de Indicadores */}
+           <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 gap-1">
+               <button 
+                  onClick={() => setShowSMA(!showSMA)} 
+                  className={`p-2 rounded-md transition-all ${showSMA ? 'bg-purple-500/20 text-purple-400' : 'text-slate-500 hover:text-white'}`} 
+                  title="Media Móvil (SMA)"
+               >
+                  <LineChartIcon size={16}/>
+               </button>
+               <button 
+                  onClick={() => setShowBollinger(!showBollinger)} 
+                  className={`p-2 rounded-md transition-all ${showBollinger ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500 hover:text-white'}`} 
+                  title="Bandas de Bollinger"
+               >
+                  <Layers size={16}/>
+               </button>
+           </div>
 
-           {/* LISTA DE ACTIVOS DINÁMICA (Aquí ocurre la magia de la ciudad) */}
+           {/* Lista de Activos */}
            <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
                {allowedAssets.map(sym => (
                   <button 
@@ -178,12 +217,34 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
                                 <stop offset="5%" stopColor={isUp ? "#22c55e" : "#ef4444"} stopOpacity={0.2}/>
                                 <stop offset="95%" stopColor={isUp ? "#22c55e" : "#ef4444"} stopOpacity={0}/>
                             </linearGradient>
+                            {/* Gradiente para Bandas de Bollinger */}
+                            <linearGradient id="bollingerFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.05}/>
+                            </linearGradient>
                         </defs>
                         <XAxis dataKey="time" hide />
                         <YAxis domain={['auto', 'auto']} hide />
                         <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#fff', borderRadius: '8px', fontSize: '12px' }} formatter={(v:any) => [`$${Number(v).toFixed(2)}`, 'Precio']} />
+                        
+                        {/* Bandas de Bollinger (Área + Líneas) */}
+                        {showBollinger && (
+                            <>
+                                <Area type="monotone" dataKey="upperBand" stroke="none" fill="none" /> {/* Hidden helper */}
+                                <Area type="monotone" dataKey="lowerBand" stroke="none" fill="none" /> {/* Hidden helper */}
+                                {/* Nota: Recharts no soporta Area entre dos líneas nativamente de forma fácil en composed, 
+                                    usamos líneas simples para representar los límites */}
+                                <Line type="monotone" dataKey="upperBand" stroke="#3b82f6" strokeWidth={1} strokeOpacity={0.5} dot={false} isAnimationActive={false} />
+                                <Line type="monotone" dataKey="lowerBand" stroke="#3b82f6" strokeWidth={1} strokeOpacity={0.5} dot={false} isAnimationActive={false} />
+                            </>
+                        )}
+
                         <Area type="monotone" dataKey="close" stroke={isUp ? "#22c55e" : "#ef4444"} fill="url(#colorPrice)" strokeWidth={2} isAnimationActive={false} />
-                        {showIndicators && <Line type="monotone" dataKey="sma" stroke="#a855f7" strokeWidth={2} dot={false} strokeDasharray="5 5" isAnimationActive={false} />}
+                        
+                        {/* Media Móvil Simple */}
+                        {(showSMA || showBollinger) && (
+                            <Line type="monotone" dataKey="sma" stroke="#a855f7" strokeWidth={2} dot={false} strokeDasharray="5 5" isAnimationActive={false} />
+                        )}
                     </ComposedChart>
                 </ResponsiveContainer>
             ) : <div className="flex items-center justify-center h-full text-slate-500 animate-pulse">Cargando datos...</div>}
@@ -214,6 +275,54 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
                </button>
             </div>
          </div>
+      </div>
+
+      {/* Automatización (SL / TP) */}
+      <div className="mt-4 border-t border-slate-800 pt-4 px-1">
+          <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-widest flex items-center gap-2">
+             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div> Automatización
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+              <div className="flex gap-2">
+                  <div className="relative flex-1">
+                      <input 
+                          type="number" 
+                          placeholder="Stop Loss $" 
+                          value={slPrice}
+                          onChange={e => setSlPrice(e.target.value)}
+                          className="w-full bg-slate-900 border border-red-900/30 text-red-400 text-xs rounded-lg p-2 pl-7 font-mono placeholder:text-red-900/50 focus:border-red-500 focus:outline-none transition-colors"
+                      />
+                      <ArrowDownToLine size={12} className="absolute left-2 top-2.5 text-red-500"/>
+                  </div>
+                  <button 
+                      onClick={() => handlePlaceOrder('stop_loss')}
+                      disabled={!slPrice}
+                      className="bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 text-red-500 text-xs font-bold rounded-lg border border-red-500/20 px-3 transition-colors"
+                  >
+                      Set
+                  </button>
+              </div>
+
+              <div className="flex gap-2">
+                  <div className="relative flex-1">
+                      <input 
+                          type="number" 
+                          placeholder="Take Profit $" 
+                          value={tpPrice}
+                          onChange={e => setTpPrice(e.target.value)}
+                          className="w-full bg-slate-900 border border-green-900/30 text-green-400 text-xs rounded-lg p-2 pl-7 font-mono placeholder:text-green-900/50 focus:border-green-500 focus:outline-none transition-colors"
+                      />
+                      <ArrowUpToLine size={12} className="absolute left-2 top-2.5 text-green-500"/>
+                  </div>
+                  <button 
+                      onClick={() => handlePlaceOrder('take_profit')}
+                      disabled={!tpPrice}
+                      className="bg-green-500/10 hover:bg-green-500/20 disabled:opacity-50 text-green-500 text-xs font-bold rounded-lg border border-green-500/20 px-3 transition-colors"
+                  >
+                      Set
+                  </button>
+              </div>
+          </div>
       </div>
     </div>
   );

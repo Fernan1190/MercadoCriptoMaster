@@ -14,6 +14,9 @@ export interface UserStats {
   levelRatings: { [lessonId: string]: 1 | 2 | 3 };
   unlockedMarkets: string[];
   
+  // NUEVO: Órdenes Pendientes (SL/TP)
+  pendingOrders: PendingOrder[];
+
   // MAESTRÍA
   lessonNotes: { [lessonId: string]: string }; 
   questionsAnswered: number; 
@@ -45,6 +48,15 @@ export interface UserStats {
   employees: string[];
   decorations: { id: string, x: number, y: number }[];
   xpMultiplier: number;
+}
+
+// NUEVA INTERFAZ
+export interface PendingOrder {
+  id: string;
+  symbol: string;
+  type: 'stop_loss' | 'take_profit';
+  triggerPrice: number;
+  amount: number;
 }
 
 export interface Transaction {
@@ -143,7 +155,7 @@ export type GameMode = 'standard' | 'survival' | 'time_trial';
 export type AIPersona = 'standard' | 'warren' | 'wolf' | 'socrates';
 export interface SimSettings { leverage: number; showRSI: boolean; showSMA: boolean; }
 export interface Asset { symbol: string; name: string; price: number; change24h: number; type: 'crypto' | 'stock'; }
-export interface CandleData { time: string; open: number; high: number; low: number; close: number; }
+export interface CandleData { time: string; open: number; high: number; low: number; close: number; volume: number; }
 
 export type MarketPhase = 'accumulation' | 'bull_run' | 'distribution' | 'bear_market' | 'crash';
 export interface MarketEvent {
@@ -179,7 +191,7 @@ export interface MarketNode {
   lng: number;
   cost: number;
   desc: string;
-  assets: string[]; // Ej: ['Sony', 'Nintendo']
+  assets: string[];
   region: 'america' | 'europe' | 'asia';
-  timezone: string; // <--- NUEVO CAMPO IMPORTANTE
+  timezone: string;
 }
