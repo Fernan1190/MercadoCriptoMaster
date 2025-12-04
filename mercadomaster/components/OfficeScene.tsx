@@ -3,6 +3,8 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, Html, SoftShadows, useCursor, Environment, Float, ContactShadows, Stars, Cloud, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 import { useGame } from '../context/GameContext';
+import { MiningStats, InstalledRack, InstalledMiner } from '../types';
+import { MINERS } from '../data/items';
 
 export interface OfficeVisualProps {
   level: number;
@@ -10,20 +12,24 @@ export interface OfficeVisualProps {
   league: string;
   skin: { floor: string, wall: string };
   achievements: string[];
+  miningFarm: MiningStats;
 }
 
 // --- UTILIDADES ---
-const ScreenMaterial = ({ color, intensity = 1 }: { color: string, intensity?: number }) => (
-    <meshStandardMaterial 
-        color={color} 
-        emissive={color} 
-        emissiveIntensity={intensity * 3} 
-        toneMapped={false} 
-    />
-);
+const ScreenMaterial = ({ color, intensity = 1, animate = false }: { color: string, intensity?: number, animate?: boolean }) => {
+    const ref = useRef<any>(null);
+    useFrame((state) => {
+        if (animate && ref.current) {
+            // Efecto de respiración/actividad
+            ref.current.emissiveIntensity = intensity + Math.sin(state.clock.elapsedTime * 5) * 0.5;
+        }
+    });
+    return <meshStandardMaterial ref={ref} color={color} emissive={color} emissiveIntensity={intensity} toneMapped={false} />;
+};
 
 function adjustColor(color: string, amount: number) {
-    return '#' + color.replace(/^#/, '').replace(/../g, color => ('0' + Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+    const safeColor = color || '#000000';
+    return '#' + safeColor.replace(/^#/, '').replace(/../g, col => ('0' + Math.min(255, Math.max(0, parseInt(col, 16) + amount)).toString(16)).substr(-2));
 }
 
 const CinematicCamera = () => {
@@ -63,7 +69,244 @@ const WeatherSystem = ({ isNight }: { isNight: boolean }) => {
     );
 };
 
-// --- COMPONENTES DE LA SALA ---
+// --- COMPONENTES AVANZADOS: MINERÍA 3D ---
+
+// Ventilador Giratorio (Corregido para aceptar rotación)
+const FanBlade = ({ 
+    position, 
+    rotation = [0, 0, 0], 
+    scale = 1, 
+    active 
+}: { 
+    position: [number, number, number], 
+    rotation?: [number, number, number], 
+    scale?: number, 
+    active: boolean 
+}) => {
+    const spinnerRef = useRef<THREE.Group>(null);
+    
+    useFrame((state, delta) => {
+        if (active && spinnerRef.current) {
+            spinnerRef.current.rotation.z -= delta * 15; // Girar rápido
+        }
+    });
+
+    return (
+        // Grupo externo para posición/rotación estática
+        <group position={position} rotation={rotation as any} scale={[scale, scale, scale]}>
+            {/* Grupo interno para la animación de giro */}
+            <group ref={spinnerRef}>
+                <mesh rotation={[0, 0, 0]}>
+                    <boxGeometry args={[0.1, 0.8, 0.02]} />
+                    <meshStandardMaterial color="#333" />
+                </mesh>
+                <mesh rotation={[0, 0, Math.PI / 2]}>
+                    <boxGeometry args={[0.1, 0.8, 0.02]} />
+                    <meshStandardMaterial color="#333" />
+                </mesh>
+            </group>
+        </group>
+    );
+};
+
+// Modelo Visual para GPUs
+const GpuMesh = ({ active }: { active: boolean }) => (
+    <group>
+        {/* PCB */}
+        <mesh castShadow receiveShadow>
+            <boxGeometry args={[1.5, 0.2, 0.8]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.5} />
+        </mesh>
+        {/* Disipador */}
+        <mesh position={[0, 0.15, 0]}>
+            <boxGeometry args={[1.4, 0.1, 0.7]} />
+            <meshStandardMaterial color="#475569" />
+        </mesh>
+        {/* Ventiladores */}
+        <FanBlade position={[-0.4, 0.21, 0]} scale={0.6} active={active} />
+        <FanBlade position={[0.4, 0.21, 0]} scale={0.6} active={active} />
+        
+        {/* Luz RGB */}
+        <mesh position={[0, 0, 0.41]}>
+             <planeGeometry args={[1.2, 0.05]} />
+             <ScreenMaterial color="#22c55e" intensity={3} animate={active} />
+        </mesh>
+    </group>
+);
+
+// Modelo Visual para ASICs
+const AsicMesh = ({ active }: { active: boolean }) => (
+    <group>
+        {/* Caja Principal */}
+        <mesh castShadow receiveShadow>
+            <boxGeometry args={[1.2, 0.6, 0.8]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.3} />
+        </mesh>
+        {/* Rejilla Frontal */}
+        <mesh position={[-0.61, 0, 0]} rotation={[0, -Math.PI/2, 0]}>
+             <planeGeometry args={[0.6, 0.5]} />
+             <meshStandardMaterial color="#0f172a" />
+        </mesh>
+        {/* Ventilador Frontal - Ahora FanBlade acepta rotación */}
+        <FanBlade position={[-0.62, 0, 0]} rotation={[0, -Math.PI/2, 0]} scale={0.5} active={active} />
+        
+        {/* Cables */}
+        <mesh position={[0.6, 0.1, 0]} rotation={[0, 0, Math.PI/2]}>
+             <cylinderGeometry args={[0.05, 0.05, 0.3]} />
+             <meshStandardMaterial color="#000" />
+        </mesh>
+
+        {/* LEDs */}
+        <mesh position={[-0.6, 0.25, 0.3]}>
+             <sphereGeometry args={[0.03]} />
+             <ScreenMaterial color={active ? "#22c55e" : "#ef4444"} intensity={5} />
+        </mesh>
+        <mesh position={[-0.6, 0.25, 0.2]}>
+             <sphereGeometry args={[0.03]} />
+             <ScreenMaterial color="#3b82f6" intensity={active ? 2 : 0} animate={active} />
+        </mesh>
+    </group>
+);
+
+// Modelo Visual Cuántico
+const QuantumMesh = ({ active }: { active: boolean }) => (
+    <group>
+         <Float speed={5} rotationIntensity={2} floatIntensity={0.5}>
+             <mesh>
+                 <octahedronGeometry args={[0.3]} />
+                 <ScreenMaterial color="#8b5cf6" intensity={5} animate={active} />
+             </mesh>
+         </Float>
+         <mesh position={[0, -0.3, 0]}>
+             <cylinderGeometry args={[0.4, 0.5, 0.1, 8]} />
+             <meshStandardMaterial color="#111" metalness={1} />
+         </mesh>
+         <group rotation={[0, 0, Math.PI/4]}>
+             <mesh>
+                 <torusGeometry args={[0.5, 0.02, 8, 32]} />
+                 <meshStandardMaterial color="#fff" emissive="#fff" />
+             </mesh>
+         </group>
+    </group>
+);
+
+const MinerUnit = ({ miner, position }: { miner: InstalledMiner, position: [number, number, number] }) => {
+    const modelInfo = MINERS.find(m => m.id === miner.modelId);
+    const type = modelInfo?.type || 'asic'; 
+    
+    return (
+        <group position={position}>
+            {miner.modelId.includes('quantum') ? (
+                <QuantumMesh active={miner.active} />
+            ) : type === 'gpu' ? (
+                <GpuMesh active={miner.active} />
+            ) : (
+                <AsicMesh active={miner.active} />
+            )}
+        </group>
+    );
+};
+
+const MiningRack3D = ({ rack, position }: { rack: InstalledRack, position: [number, number, number] }) => {
+    const [hovered, setHover] = useState(false);
+    useCursor(hovered);
+
+    const rackHeight = rack.slots.length * 0.8 + 0.5;
+
+    return (
+        <group 
+            position={position} 
+            onPointerOver={(e) => { e.stopPropagation(); setHover(true); }} 
+            onPointerOut={() => setHover(false)}
+        >
+            {/* Postes */}
+            <mesh position={[-0.9, rackHeight/2, -0.9]} castShadow>
+                <boxGeometry args={[0.1, rackHeight, 0.1]} />
+                <meshStandardMaterial color="#1e293b" metalness={0.8} />
+            </mesh>
+            <mesh position={[0.9, rackHeight/2, -0.9]} castShadow>
+                <boxGeometry args={[0.1, rackHeight, 0.1]} />
+                <meshStandardMaterial color="#1e293b" metalness={0.8} />
+            </mesh>
+            <mesh position={[-0.9, rackHeight/2, 0.9]} castShadow>
+                <boxGeometry args={[0.1, rackHeight, 0.1]} />
+                <meshStandardMaterial color="#1e293b" metalness={0.8} />
+            </mesh>
+            <mesh position={[0.9, rackHeight/2, 0.9]} castShadow>
+                <boxGeometry args={[0.1, rackHeight, 0.1]} />
+                <meshStandardMaterial color="#1e293b" metalness={0.8} />
+            </mesh>
+
+            {/* Base y Techo */}
+            <mesh position={[0, 0.1, 0]}>
+                 <boxGeometry args={[2, 0.2, 2]} />
+                 <meshStandardMaterial color="#0f172a" />
+            </mesh>
+            <mesh position={[0, rackHeight, 0]}>
+                 <boxGeometry args={[2, 0.1, 2]} />
+                 <meshStandardMaterial color="#0f172a" />
+            </mesh>
+
+            {/* Mineros */}
+            {rack.slots.map((miner, index) => (
+                miner ? (
+                    <MinerUnit 
+                        key={miner.instanceId} 
+                        miner={miner} 
+                        position={[0, 0.6 + (index * 0.8), 0]} 
+                    />
+                ) : (
+                    <mesh position={[0, 0.6 + (index * 0.8), 0]} key={`empty-${index}`}>
+                        <boxGeometry args={[1.8, 0.05, 1.8]} />
+                        <meshBasicMaterial color="#334155" transparent opacity={0.1} wireframe />
+                    </mesh>
+                )
+            ))}
+
+            {hovered && (
+                <Html position={[0, rackHeight + 0.5, 0]} center>
+                    <div className="bg-slate-900/90 text-white px-3 py-1.5 rounded-lg text-xs border border-blue-500/50 whitespace-nowrap backdrop-blur-md shadow-xl flex flex-col items-center">
+                        <span className="font-bold">RACK SYSTEM</span>
+                        <span className="text-[10px] text-blue-300">{rack.slots.filter(s => s).length} / {rack.slots.length} Slots Ocupados</span>
+                    </div>
+                </Html>
+            )}
+        </group>
+    );
+};
+
+const MiningMonitor = ({ position, hashrate }: { position: [number, number, number], hashrate: number }) => {
+    if (hashrate <= 0) return null;
+    
+    return (
+        <group position={position} rotation={[0, -Math.PI/2, 0]}>
+            <mesh position={[0, 0, 0]} castShadow>
+                <boxGeometry args={[4, 2.5, 0.2]} />
+                <meshStandardMaterial color="#111" />
+            </mesh>
+            <mesh position={[0, 0, 0.11]}>
+                <planeGeometry args={[3.8, 2.3]} />
+                <ScreenMaterial color="#10b981" intensity={1.5} />
+            </mesh>
+            <group position={[-1.5, -0.8, 0.12]}>
+                 {[...Array(8)].map((_, i) => (
+                     <mesh key={i} position={[i * 0.4, Math.random() * 0.5, 0]}>
+                         <planeGeometry args={[0.3, 0.5 + Math.random()]} />
+                         <meshBasicMaterial color="#a7f3d0" />
+                     </mesh>
+                 ))}
+            </group>
+            <Html position={[0, 0.5, 0.12]} transform occlude center scale={0.2}>
+                <div className="text-center select-none pointer-events-none">
+                    <div className="text-4xl font-black text-green-900">MINING_OS</div>
+                    <div className="text-2xl font-mono text-green-800">{hashrate.toFixed(1)} TH/s</div>
+                </div>
+            </Html>
+        </group>
+    );
+};
+
+// ... (Componentes Muebles y Decoración)
 const Floor = ({ color }: { color: string }) => (
     <group>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]} receiveShadow>
@@ -118,7 +361,6 @@ const ArcadeMachine = ({ position }: { position: [number, number, number] }) => 
     </group>
 );
 
-// ... (Desk, Character, Decoration se mantienen igual)
 const Desk = ({ position, items }: { position: [number, number, number], items: string[] }) => {
   return (
     <group position={position}>
@@ -138,8 +380,6 @@ const Desk = ({ position, items }: { position: [number, number, number], items: 
         <boxGeometry args={[4.2, 0.2, 2.2]} />
         <meshStandardMaterial color="#334155" roughness={0.7} />
       </mesh>
-
-      {/* PC Gaming */}
       <mesh position={[1.3, 2.6, 0]} castShadow>
         <boxGeometry args={[0.6, 0.8, 1.4]} />
         <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.4} />
@@ -150,8 +390,6 @@ const Desk = ({ position, items }: { position: [number, number, number], items: 
              <ScreenMaterial color="#00ff00" intensity={3} />
          </mesh>
       )}
-
-      {/* Monitor Ultrawide */}
       <group position={[0, 2.85, -0.6]}>
           <mesh position={[0, 0.6, 0]} castShadow>
               <boxGeometry args={[2.8, 1.2, 0.1]} /> 
@@ -162,7 +400,6 @@ const Desk = ({ position, items }: { position: [number, number, number], items: 
               <ScreenMaterial color="#3b82f6" intensity={2} />
           </mesh>
       </group>
-      
       <mesh position={[0, 2.21, 0.4]} rotation={[-Math.PI/2, 0, 0]} receiveShadow>
           <planeGeometry args={[1.8, 0.8]} />
           <meshStandardMaterial color="#1e293b" />
@@ -204,7 +441,6 @@ const Character = ({ position }: { position: [number, number, number] }) => {
                 <meshStandardMaterial color="#374151" />
             </mesh>
         </group>
-
         <group position={[0, 1.3, 0]}>
             <mesh castShadow>
                 <boxGeometry args={[0.9, 1.1, 0.5]} />
@@ -238,7 +474,6 @@ const Decoration = ({ type, position }: { type: string, position: [number, numbe
     const { actions } = useGame();
     useCursor(hovered);
     const scale = hovered ? 1.2 : 1;
-
     const handleClick = () => {
         if (type === 'cat') actions.activateBuff('lucky_cat', 60000, 1.5);
         if (type === 'plant') actions.activateBuff('zen_plant', 60000, 1.1);
@@ -267,7 +502,6 @@ const Decoration = ({ type, position }: { type: string, position: [number, numbe
                     {hovered && <Html position={[0,2.5,0]} center><div className="bg-black/80 text-white text-xs p-1 rounded border border-white/20">Planta Feliz 🌿</div></Html>}
                 </group>
             )}
-            
             {type === 'cat' && (
                 <group>
                     <mesh position={[0, 0.4, 0]} castShadow>
@@ -287,7 +521,6 @@ const Decoration = ({ type, position }: { type: string, position: [number, numbe
                      {hovered && <Html position={[0,1.5,0]} center><div className="bg-black/80 text-white text-xs p-1 rounded border border-white/20">¡Acaríciame! 🐈</div></Html>}
                 </group>
             )}
-
             {type === 'trophy_gold' && (
                 <Float speed={3} rotationIntensity={1.5} floatIntensity={0.5}>
                     <group rotation={[0.2, 0.5, 0]}>
@@ -307,8 +540,7 @@ const Decoration = ({ type, position }: { type: string, position: [number, numbe
 };
 
 // --- ESCENA PRINCIPAL ---
-
-const OfficeScene: React.FC<OfficeVisualProps> = ({ level, items, skin, achievements }) => {
+const OfficeScene: React.FC<OfficeVisualProps> = ({ level, items, skin, achievements, miningFarm }) => {
   const [isNight, setIsNight] = useState(false);
 
   useEffect(() => {
@@ -321,20 +553,12 @@ const OfficeScene: React.FC<OfficeVisualProps> = ({ level, items, skin, achievem
       return () => clearInterval(timer);
   }, []);
 
-  let tier = 1;
-  if (level >= 5) tier = 2;
-  if (level >= 10) tier = 3;
-  if (level >= 20) tier = 4;
-  if (level >= 50) tier = 5;
-
   return (
     <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
         <CinematicCamera />
-        
         <color attach="background" args={[isNight ? '#020617' : '#f1f5f9']} />
         <WeatherSystem isNight={isNight} />
         <Environment preset={isNight ? "night" : "city"} background={false} blur={0.8} />
-        
         <ambientLight intensity={isNight ? 0.2 : 0.6} />
         <directionalLight 
             position={[-10, 20, 10]} 
@@ -344,16 +568,42 @@ const OfficeScene: React.FC<OfficeVisualProps> = ({ level, items, skin, achievem
             shadow-mapSize={[2048, 2048]}
             shadow-bias={-0.0001}
         />
-        
         <pointLight position={[5, 10, 5]} intensity={0.5} color="#fbbf24" distance={20} />
 
         <group position={[0, -2, 0]}>
             <Floor color={skin.floor} />
             <Walls color={skin.wall} />
+            
             <Desk position={[0, 0, 0]} items={items} />
             <Character position={[0, 0.1, 1.5]} />
             <TrophyShelf achievements={achievements} />
             <ArcadeMachine position={[-8, 0, 2]} />
+
+            {miningFarm.racks.map((rack, i) => {
+                let posX = 5;
+                let posZ = -10;
+                if (i < 2) {
+                    posX = 8 + (i * 3);
+                    posZ = -5;
+                } else {
+                    posX = 5 + ((i-2) * 3);
+                    posZ = -12;
+                }
+                return (
+                    <MiningRack3D 
+                        key={rack.instanceId} 
+                        rack={rack} 
+                        position={[posX, 0, posZ]} 
+                    />
+                );
+            })}
+
+            {miningFarm.totalHashrate > 0 && (
+                <MiningMonitor 
+                    position={[0, 6, -11.8]} 
+                    hashrate={miningFarm.totalHashrate}
+                />
+            )}
 
             {items.includes('plant') && <Decoration type="plant" position={[5, 0, -4]} />}
             {items.includes('cat') && <Decoration type="cat" position={[-3, 0, 3]} />}
