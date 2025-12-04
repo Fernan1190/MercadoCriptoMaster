@@ -3,6 +3,7 @@ import { useGame } from '../context/GameContext';
 import { Globe, Lock, Unlock, TrendingUp, AlertTriangle, DollarSign } from 'lucide-react';
 import { WarRoomScene } from './WarRoomScene';
 import { MARKET_NODES } from '../data/markets';
+import { TradingModal } from './TradingModal'; // Importa el modal que acabamos de crear
 
 export const WarRoom: React.FC = () => {
   const { stats, actions } = useGame();
@@ -15,6 +16,14 @@ export const WarRoom: React.FC = () => {
       if (selectedMarket && actions.unlockMarket(selectedMarket.id)) {
           // Éxito
       }
+      // 1. ESTADO PARA EL MODAL
+  const [isTradingOpen, setIsTradingOpen] = useState(false);
+  
+  // Datos del nodo seleccionado (Simulado basado en tu imagen)
+  const selectedNode = {
+      id: 'ny',
+      name: "New York (NYSE)",
+      assets: ["AAPL", "TSLA", "MSFT"]
   };
 
   return (
