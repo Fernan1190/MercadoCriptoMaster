@@ -9,7 +9,8 @@ export const MARKET_NODES: MarketNode[] = [
     cost: 0, 
     desc: "El corazón financiero del mundo. Volatilidad media-alta.",
     assets: ['AAPL', 'TSLA', 'MSFT'],
-    region: 'america'
+    region: 'america',
+    timezone: 'America/New_York'
   },
   { 
     id: 'london', 
@@ -19,7 +20,8 @@ export const MARKET_NODES: MarketNode[] = [
     cost: 5000, 
     desc: "Puerta de Europa. Ideal para Forex y materias primas.",
     assets: ['BP', 'HSBC', 'SHEL'],
-    region: 'europe'
+    region: 'europe',
+    timezone: 'Europe/London'
   },
   { 
     id: 'tokyo', 
@@ -29,7 +31,8 @@ export const MARKET_NODES: MarketNode[] = [
     cost: 12000, 
     desc: "Tecnología y automoción. Abre cuando occidente duerme.",
     assets: ['SONY', 'TM', 'NINTENDO'],
-    region: 'asia'
+    region: 'asia',
+    timezone: 'Asia/Tokyo'
   },
   { 
     id: 'hong_kong', 
@@ -39,7 +42,8 @@ export const MARKET_NODES: MarketNode[] = [
     cost: 25000, 
     desc: "El puente con China. Mercado de alto riesgo y recompensa.",
     assets: ['TENCENT', 'BABA', 'BYD'],
-    region: 'asia'
+    region: 'asia',
+    timezone: 'Asia/Hong_Kong'
   },
   { 
     id: 'zurich', 
@@ -49,6 +53,7 @@ export const MARKET_NODES: MarketNode[] = [
     cost: 50000, 
     desc: "El refugio seguro. Banca privada y farmacéuticas.",
     assets: ['NESTLE', 'ROCHE', 'UBS'],
-    region: 'europe'
+    region: 'europe',
+    timezone: 'Europe/Zurich'
   }
 ];

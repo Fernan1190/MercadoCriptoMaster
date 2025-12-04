@@ -181,4 +181,5 @@ export interface MarketNode {
   desc: string;
   assets: string[]; // Ej: ['Sony', 'Nintendo']
   region: 'america' | 'europe' | 'asia';
+  timezone: string;
 }
