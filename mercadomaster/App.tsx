@@ -5,7 +5,8 @@ import { Dashboard } from './components/Dashboard';
 import { Shop } from './components/Shop'; 
 import { Leaderboard } from './components/Leaderboard';
 import { Profile } from './components/Profile';
-import { Office } from './components/Office'; // <--- IMPORTAR
+import { Office } from './components/Office';
+import { WarRoom } from './components/WarRoom'; // <--- IMPORTAR
 import { AchievementPopup } from './components/AchievementPopup';
 import { GameProvider, useGame } from './context/GameContext'; 
 
@@ -37,7 +38,8 @@ const AppContent = () => {
       
       <main className="flex-1 overflow-y-auto w-full relative z-10 custom-scrollbar">
         {view === 'dashboard' && <Dashboard setView={setView} />}
-        {view === 'office' && <Office />}  {/* <--- NUEVA RUTA */}
+        {view === 'office' && <Office />}
+        {view === 'war-room' && <WarRoom />} {/* <--- NUEVA RUTA */}
         {view === 'learn' && <Learn />}
         {view === 'shop' && <Shop />}
         {view === 'leaderboard' && <Leaderboard />}

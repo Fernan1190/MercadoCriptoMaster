@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, LayoutDashboard, Heart, Coins, TrendingUp, ShoppingBag, Trophy, User, Building2 } from 'lucide-react';
+import { BookOpen, LayoutDashboard, Heart, Coins, TrendingUp, ShoppingBag, Trophy, User, Building2, Globe } from 'lucide-react';
 import { UserStats } from '../types';
 
 interface SidebarProps {
@@ -11,7 +11,8 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, stats }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Inicio', icon: <LayoutDashboard size={20} /> },
-    { id: 'office', label: 'Sede', icon: <Building2 size={20} /> }, // <--- NUEVO BOTÓN
+    { id: 'office', label: 'Sede', icon: <Building2 size={20} /> },
+    { id: 'war-room', label: 'Mapa Global', icon: <Globe size={20} /> }, // <--- NUEVO
     { id: 'learn', label: 'Aprender', icon: <BookOpen size={20} /> },
     { id: 'shop', label: 'Tienda', icon: <ShoppingBag size={20} /> },
     { id: 'leaderboard', label: 'Ranking', icon: <Trophy size={20} /> },
@@ -43,7 +44,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, stats })
             <button
               key={item.id}
               onClick={() => setView(item.id)}
-              aria-label={item.label} // Para accesibilidad y trucos de click
               className={`flex flex-col md:flex-row items-center md:gap-3 p-2 md:px-4 md:py-3 rounded-xl transition-all duration-200 relative
                 ${currentView === item.id 
                   ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
@@ -52,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, stats })
             >
               {item.icon}
               <span className="text-xs md:text-sm font-medium">{item.label}</span>
+              
               {item.id === 'dashboard' && pendingQuests > 0 && (
                 <span className="absolute top-2 right-2 md:top-3 md:right-4 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               )}

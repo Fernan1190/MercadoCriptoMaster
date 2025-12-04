@@ -3,6 +3,7 @@ import { UserStats, PathId, DailyQuest, Transaction, Achievement, CandleData, Qu
 import { INITIAL_PRICES, generateNextCandle } from '../services/marketSimulator';
 import { ACHIEVEMENTS } from '../data/achievements';
 import { MARKET_EVENTS } from '../data/events';
+import { MARKET_NODES } from '../data/markets';
 
 const INITIAL_QUESTS: DailyQuest[] = [
   { id: 'q1', text: 'Gana 50 XP', target: 50, progress: 0, completed: false, reward: 50, type: 'xp' },
@@ -11,40 +12,43 @@ const INITIAL_QUESTS: DailyQuest[] = [
 ];
 
 const INITIAL_STATS: UserStats = {
-  xp: 0, 
-  level: 1, 
-  league: 'Bronze', 
-  streak: 1, 
-  balance: 10000, 
-  hearts: 5, 
+  xp: 0,
+  level: 1,
+  league: 'Bronze',
+  streak: 1,
+  balance: 10000,
+  hearts: 5,
   portfolio: {}, 
-  transactions: [], 
+  transactions: [],
   unlockedAchievements: [],
-  maxHearts: 5, 
+  maxHearts: 5,
   masterCoins: 350, 
-  completedLessons: [], 
-  levelRatings: {}, 
-  lessonNotes: {}, 
-  questionsAnswered: 0, 
-  correctAnswers: 0,
-  mistakes: [], 
+  completedLessons: [],
+  levelRatings: {},
   pathProgress: { [PathId.STOCKS]: 0, [PathId.CRYPTO]: 0 },
-  inventory: { hint5050: 3, timeFreeze: 2, skip: 1, streakFreeze: 1, doubleXp: 0 }, 
-  bookmarks: [], 
+  inventory: { hint5050: 3, timeFreeze: 2, skip: 1, streakFreeze: 1, doubleXp: 0 },
+  bookmarks: [],
   dailyQuests: INITIAL_QUESTS,
-  theme: 'default', 
-  unlockedThemes: ['default'], 
-  prestige: 0, 
-  stakedCoins: 0, 
-  minedCoins: 0, 
-  quickNotes: "", 
+  theme: 'default',
+  unlockedThemes: ['default'],
+  prestige: 0,
+  stakedCoins: 0,
+  minedCoins: 0,
+  quickNotes: "",
   openedChests: [],
+  // Tycoon
   officeItems: [],
-  // --- CORRECCIÓN: Propiedades de Tycoon que faltaban ---
   officeTier: 1,
   employees: [],
   decorations: [],
-  xpMultiplier: 1
+  xpMultiplier: 1,
+  // Maestría
+  lessonNotes: {},
+  questionsAnswered: 0,
+  correctAnswers: 0,
+  mistakes: [],
+  // War Room
+  unlockedMarkets: ['ny']
 };
 
 type SoundType = 'success' | 'error' | 'cash' | 'pop' | 'levelUp' | 'click' | 'chest' | 'news';
@@ -78,6 +82,7 @@ interface GameContextType {
     buyTheme: (themeId: string, cost: number) => boolean;
     equipTheme: (themeId: any) => void;
     buyOfficeItem: (itemId: string, cost: number) => boolean;
+    unlockMarket: (marketId: string) => boolean;
   };
 }
 
@@ -90,7 +95,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Migraciones para evitar crashes con versiones antiguas del storage
+        // Migraciones de seguridad para evitar crashes
         if (!parsed.portfolio) parsed.portfolio = {};
         if (!parsed.transactions) parsed.transactions = [];
         if (!parsed.unlockedAchievements) parsed.unlockedAchievements = [];
@@ -100,17 +105,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         if (parsed.correctAnswers === undefined) parsed.correctAnswers = 0;
         if (!parsed.mistakes) parsed.mistakes = [];
         if (!parsed.officeItems) parsed.officeItems = [];
-        // Nuevos campos Tycoon
-        if (parsed.officeTier === undefined) parsed.officeTier = 1;
-        if (!parsed.employees) parsed.employees = [];
-        if (!parsed.decorations) parsed.decorations = [];
-        if (parsed.xpMultiplier === undefined) parsed.xpMultiplier = 1;
+        if (!parsed.unlockedMarkets) parsed.unlockedMarkets = ['ny'];
         return parsed;
       } catch (e) { return INITIAL_STATS; }
     }
     return INITIAL_STATS;
   });
 
+  // 2. ESTADO DE MERCADO
   const [marketState, setMarketState] = useState<MarketState>({
       prices: INITIAL_PRICES,
       history: {},
@@ -340,6 +342,23 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     return false;
   }, [stats.portfolio]);
 
+  const unlockMarket = useCallback((marketId: string) => {
+     const market = MARKET_NODES.find(m => m.id === marketId);
+     if (!market) return false;
+
+     if (stats.masterCoins >= market.cost && !stats.unlockedMarkets.includes(marketId)) {
+         playSound('success'); 
+         setStats(prev => ({
+             ...prev,
+             masterCoins: prev.masterCoins - market.cost,
+             unlockedMarkets: [...prev.unlockedMarkets, marketId]
+         }));
+         return true;
+     }
+     playSound('error');
+     return false;
+  }, [stats.masterCoins, stats.unlockedMarkets, playSound]);
+
   const buyShopItem = useCallback((itemId: keyof UserStats['inventory'], cost: number) => {
      if (stats.masterCoins >= cost) {
          playSound('cash');
@@ -410,8 +429,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
   const contextValue = useMemo(() => ({
     stats, latestAchievement, clearAchievement, market: marketState, latestEvent, clearEvent,
-    actions: { updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem }
-  }), [stats, marketState, latestAchievement, latestEvent, updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, clearEvent]);
+    actions: { updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket }
+  }), [stats, marketState, latestAchievement, latestEvent, updateStats, mineCoin, buyAsset, sellAsset, deductHeart, buyHearts, useItem, addBookmark, stakeCoins, unstakeCoins, openChest, toggleTheme, updateNotes, getThemeClass, playSound, buyShopItem, buyTheme, equipTheme, saveLessonNote, recordAnswer, buyOfficeItem, unlockMarket, clearEvent]);
 
   return (
     <GameContext.Provider value={contextValue}>
