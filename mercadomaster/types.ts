@@ -111,9 +111,9 @@ export interface TheorySlide {
   title: string;
   content: string;
   simplifiedContent?: string;
-  analogy?: string; // <--- AHORA ES OPCIONAL (?) PARA EVITAR ERRORES
+  analogy?: string; 
   realWorldExample?: string;
-  icon?: string;    // <--- TAMBIÉN OPCIONAL POR SEGURIDAD
+  icon?: string;    
   visualType?: 'chart_line' | 'chart_candle' | 'chart_volume' | 'diagram_flow' | 'none';
   visualMeta?: { trend?: 'up' | 'down' | 'volatile' | 'flat'; showIndicators?: boolean; label?: string; };
   keyTerms?: string[];
@@ -181,5 +181,5 @@ export interface MarketNode {
   desc: string;
   assets: string[]; // Ej: ['Sony', 'Nintendo']
   region: 'america' | 'europe' | 'asia';
-  timezone: string;
+  timezone: string; // <--- NUEVO CAMPO IMPORTANTE
 }
