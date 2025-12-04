@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, LayoutDashboard, Heart, Coins, TrendingUp, ShoppingBag, Trophy, User, Building2, Globe } from 'lucide-react';
+import { BookOpen, LayoutDashboard, Heart, Coins, TrendingUp, ShoppingBag, Trophy, User, Building2, Globe, Brain } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 
 export const Sidebar: React.FC = () => {
@@ -13,14 +13,17 @@ export const Sidebar: React.FC = () => {
     { id: '/office', label: 'Sede', icon: <Building2 size={20} /> },
     { id: '/map', label: 'Mapa Global', icon: <Globe size={20} /> },
     { id: '/learn', label: 'Aprender', icon: <BookOpen size={20} /> },
+    { id: '/skills', label: 'Talentos', icon: <Brain size={20} /> }, // <--- NUEVO BOTÓN
     { id: '/shop', label: 'Tienda', icon: <ShoppingBag size={20} /> },
     { id: '/ranking', label: 'Ranking', icon: <Trophy size={20} /> },
     { id: '/profile', label: 'Perfil', icon: <User size={20} /> },
   ];
-
+  
+  // ... (Resto del componente igual, el map renderizará el nuevo item)
+  // Solo asegúrate de copiar el resto del contenido de tu Sidebar anterior si tienes lógica extra
+  // Pero básicamente es añadir ese objeto al array.
+  
   const pendingQuests = stats?.dailyQuests.filter(q => !q.completed).length || 0;
-
-  // Helper para saber si un item está activo
   const isActive = (path: string) => {
       if (path === '/' && location.pathname === '/') return true;
       if (path !== '/' && location.pathname.startsWith(path)) return true;
@@ -58,16 +61,17 @@ export const Sidebar: React.FC = () => {
             >
               {item.icon}
               <span className="text-[10px] md:text-sm font-medium">{item.label}</span>
-              
-              {/* Indicador de notificaciones */}
               {item.id === '/' && pendingQuests > 0 && (
                 <span className="absolute top-2 right-2 md:top-3 md:right-4 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+              )}
+              {/* Indicador de puntos de habilidad */}
+              {item.id === '/skills' && stats.skillPoints > 0 && (
+                  <span className="absolute top-2 right-2 md:top-3 md:right-4 w-4 h-4 bg-fuchsia-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold animate-bounce">{stats.skillPoints}</span>
               )}
             </button>
           ))}
         </nav>
       </div>
-
       <div className="hidden md:block p-6">
         <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-center">
           <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-1">Status</p>

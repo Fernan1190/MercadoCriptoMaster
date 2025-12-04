@@ -9,7 +9,7 @@ export const Office: React.FC = () => {
   const navigate = useNavigate();
   const { stats, actions, market } = useGame();
   const { level, officeItems, balance, activeBuffs, activeSkin, miningFarm, league, unlockedAchievements } = stats;
-  const { changeOfficeSkin, buyRack, buyMiner, sellMinedCrypto, repairMiner } = actions;
+  const { changeOfficeSkin, buyRack, buyMiner, sellMinedCrypto, repairMiner } = actions; // <--- AQUÍ FALTABA REPAIRMINER
 
   const [showDecorator, setShowDecorator] = useState(false);
   const [showArcade, setShowArcade] = useState(false);
@@ -22,6 +22,7 @@ export const Office: React.FC = () => {
   if (level >= 20) tierName = "Penthouse Wall St.";
   if (level >= 50) tierName = "Base Lunar";
 
+  // Calcular valor en USD de lo minado
   const minedValue = miningFarm.minedFragments * (market.prices['BTC'] || 0);
 
   return (
@@ -66,6 +67,7 @@ export const Office: React.FC = () => {
           <button onClick={() => navigate('/shop')} className="bg-yellow-500 hover:bg-yellow-400 text-slate-900 px-6 py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"><TrendingUp size={18}/> <span className="hidden md:inline">Tienda</span></button>
       </div>
 
+      {/* MODAL DE MINERÍA */}
       {showMining && (
           <div className="absolute inset-0 z-50 bg-slate-950/95 flex flex-col p-6 md:p-12 animate-fade-in overflow-hidden">
               <div className="flex justify-between items-center mb-8">
@@ -102,13 +104,15 @@ export const Office: React.FC = () => {
                                           {rack.slots.map((slot, slotIdx) => (
                                               <div key={slotIdx} className="bg-slate-900 h-16 rounded-lg border border-slate-800 flex items-center justify-center relative overflow-hidden hover:border-slate-600 transition-colors">
                                                   {slot ? (
-                                                      <div className="text-center w-full p-1">
+                                                      <div className="text-center w-full p-1 relative">
                                                           <div className="text-[10px] text-blue-300 font-bold truncate">{MINERS.find(m => m.id === slot.modelId)?.name}</div>
                                                           <div className={`text-[9px] flex items-center justify-center gap-1 ${slot.condition < 50 ? 'text-red-400' : 'text-slate-500'}`}>
                                                               <BatteryCharging size={8}/> {Math.floor(slot.condition)}%
                                                           </div>
+                                                          
+                                                          {/* BOTÓN DE REPARACIÓN (NUEVO) */}
                                                           {slot.condition < 100 && (
-                                                              <button onClick={(e) => { e.stopPropagation(); repairMiner(rack.instanceId, slotIdx); }} className="absolute bottom-1 right-1 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white p-1 rounded-full transition-colors">
+                                                              <button onClick={(e) => { e.stopPropagation(); repairMiner(rack.instanceId, slotIdx); }} className="absolute bottom-1 right-1 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white p-1 rounded-full transition-colors" title="Reparar ($50)">
                                                                   <Wrench size={10}/>
                                                               </button>
                                                           )}

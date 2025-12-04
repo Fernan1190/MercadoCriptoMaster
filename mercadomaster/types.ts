@@ -13,19 +13,12 @@ export interface UserStats {
   completedLessons: string[];
   levelRatings: { [lessonId: string]: 1 | 2 | 3 };
   unlockedMarkets: string[];
-  
-  // Órdenes Pendientes
   pendingOrders: PendingOrder[];
-  
-  // Profesor
   customQuestions: QuizQuestion[]; 
-
-  // MAESTRÍA
   lessonNotes: { [lessonId: string]: string }; 
   questionsAnswered: number; 
   correctAnswers: number;    
   mistakes: QuizQuestion[]; 
-
   pathProgress: { [key in PathId]?: number };
   inventory: {
     hint5050: number;
@@ -45,45 +38,55 @@ export interface UserStats {
   minedCoins: number;
   quickNotes: string;
   
-  // --- MEJORAS TYCOON (SEDE) ---
+  // TYCOON
   officeItems: string[];
   officeTier: number;
   employees: string[];
   decorations: { id: string, x: number, y: number }[];
   xpMultiplier: number;
-  
   lastSaveTime: number;
   activeSkin: { floor: string, wall: string };
   activeBuffs: { id: string, expiresAt: number, multiplier: number }[];
   unlockedSkins: string[];
-
-  // --- NUEVO CAMPO DE MINERÍA ---
   miningFarm: MiningStats; 
+
+  // --- NUEVO: SKILLS ---
+  skillPoints: number;
+  unlockedSkills: string[]; 
 }
 
-// --- INTERFACES DE MINERÍA ---
-export interface InstalledMiner {
-  instanceId: string;
-  modelId: string;
-  condition: number;
-  active: boolean;
+// --- NUEVO: SKILL TREE ---
+export interface SkillNode {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+    cost: number;
+    requires: string[]; 
+    x: number; 
+    y: number; 
+    category: 'trader' | 'miner' | 'sage';
 }
 
-export interface InstalledRack {
-  instanceId: string;
-  modelId: string;
-  slots: (InstalledMiner | null)[];
+// --- NUEVO: NPC EVENTS ---
+export interface NpcOption {
+    text: string;
+    risk: 'low' | 'medium' | 'high' | 'none';
+    actionId: string; 
 }
 
-export interface MiningStats {
-  racks: InstalledRack[];
-  minedFragments: number;
-  totalHashrate: number;
-  totalPowerConsumption: number;
-  electricityCostPerWatt: number;
+export interface NpcEvent {
+    id: string;
+    npcName: string;
+    npcAvatar: string; 
+    dialogue: string;
+    options: NpcOption[];
 }
 
-// --- RESTO DE INTERFACES ---
+// ... (Resto de interfaces se mantienen igual)
+export interface InstalledMiner { instanceId: string; modelId: string; condition: number; active: boolean; }
+export interface InstalledRack { instanceId: string; modelId: string; slots: (InstalledMiner | null)[]; }
+export interface MiningStats { racks: InstalledRack[]; minedFragments: number; totalHashrate: number; totalPowerConsumption: number; electricityCostPerWatt: number; }
 export interface PendingOrder { id: string; symbol: string; type: 'stop_loss' | 'take_profit'; triggerPrice: number; amount: number; }
 export interface Transaction { id: string; type: 'buy' | 'sell'; symbol: string; amount: number; price: number; timestamp: string; }
 export enum PathId { STOCKS = 'stocks', CRYPTO = 'crypto' }
