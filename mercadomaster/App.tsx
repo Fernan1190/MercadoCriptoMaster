@@ -9,11 +9,17 @@ import { Office } from './components/Office';
 import { WarRoom } from './components/WarRoom'; // <--- IMPORTAR
 import { AchievementPopup } from './components/AchievementPopup';
 import { GameProvider, useGame } from './context/GameContext'; 
+import { CityTradingView } from './components/CityTradingView';
+import { MarketNode } from './types'; // Asegúrate de importar MarketNode
 
 const AppContent = () => {
   const [view, setView] = useState('dashboard');
+  const [activeMarket, setActiveMarket] = useState<MarketNode | null>(null);
   const { stats, actions, latestAchievement, clearAchievement } = useGame();
-  
+  const handleTravelToCity = (market: MarketNode) => {
+      setActiveMarket(market);
+      setView('city_trading'); // Cambiamos la vista principal
+
   useEffect(() => {
     const hasGreeted = sessionStorage.getItem('hasGreeted');
     if (!hasGreeted) {

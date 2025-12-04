@@ -16,14 +16,7 @@ export const WarRoom: React.FC = () => {
       if (selectedMarket && actions.unlockMarket(selectedMarket.id)) {
           // Éxito
       }
-      // 1. ESTADO PARA EL MODAL
-  const [isTradingOpen, setIsTradingOpen] = useState(false);
-  
-  // Datos del nodo seleccionado (Simulado basado en tu imagen)
-  const selectedNode = {
-      id: 'ny',
-      name: "New York (NYSE)",
-      assets: ["AAPL", "TSLA", "MSFT"]
+      
   };
 
   return (
